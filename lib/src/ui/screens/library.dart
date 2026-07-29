@@ -1,0 +1,846 @@
+import 'dart:ui';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:landingpage/src/ui/custom/custom_appbar.dart';
+import 'package:landingpage/src/utils/colors.dart';
+import 'package:landingpage/src/models/song_data.dart';
+
+// Playlist model, the 4 built-in playlists, and playlist storage helpers
+// (songIdsForPlaylist / addSongToPlaylist) now live in song_data.dart so
+// Discover's "Add to playlist" sheet can share them.
+
+// ---------------------------------------------------------------------------
+// LibraryPage
+// ---------------------------------------------------------------------------
+
+class LibraryPage extends StatefulWidget {
+  final bool isDarkMode;
+  const LibraryPage({super.key, required this.isDarkMode});
+
+  @override
+  State<LibraryPage> createState() => _LibraryPageState();
+}
+
+class _LibraryPageState extends State<LibraryPage> {
+  late bool isDarkMode;
+  int _tabIndex = 0;
+  bool _loaded = false;
+  Set<String> _likedIds = {};
+  Set<String> _savedIds = {};
+  List<String> _recentIds = [];
+
+  @override
+  void initState() {
+    super.initState();
+    isDarkMode = widget.isDarkMode;
+    _loadPrefs();
+  }
+
+  Future<void> _loadPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _likedIds = (prefs.getStringList(likedSongIdsKey) ?? []).toSet();
+      _savedIds = (prefs.getStringList(savedSongIdsKey) ?? []).toSet();
+      _recentIds = prefs.getStringList(recentlyPlayedIdsKey) ?? [];
+      _loaded = true;
+    });
+  }
+
+  // Called whenever this page becomes visible again (e.g. navigating back
+  // from Discover after liking/saving something) so the lists stay fresh.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loaded) _loadPrefs();
+  }
+
+  Future<void> _toggleLike(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      if (_likedIds.contains(id)) {
+        _likedIds.remove(id);
+      } else {
+        _likedIds.add(id);
+      }
+    });
+    await prefs.setStringList(likedSongIdsKey, _likedIds.toList());
+  }
+
+  Future<void> _toggleSaved(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      if (_savedIds.contains(id)) {
+        _savedIds.remove(id);
+      } else {
+        _savedIds.add(id);
+      }
+    });
+    await prefs.setStringList(savedSongIdsKey, _savedIds.toList());
+  }
+
+  Future<void> _markPlayed(Song song) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _recentIds.remove(song.id);
+      _recentIds.insert(0, song.id);
+      if (_recentIds.length > 25) {
+        _recentIds = _recentIds.sublist(0, 25);
+      }
+    });
+    await prefs.setStringList(recentlyPlayedIdsKey, _recentIds);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: isDarkMode ? const Color(0xff220833) : Colors.white,
+        content: Text(
+          'Playing "${song.title}"',
+          style: GoogleFonts.spaceGrotesk(
+            color: AppColors.textPrimary(isDarkMode),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1400),
+      ),
+    );
+  }
+
+  Future<void> _clearRecent() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() => _recentIds = []);
+    await prefs.remove(recentlyPlayedIdsKey);
+  }
+
+  Future<void> _toggleTheme() async {
+    setState(() => isDarkMode = !isDarkMode);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isDarkMode', isDarkMode);
+  }
+
+  // Resolves the playlist's full song list (built-in + anything added from
+  // Discover's "Add to playlist" sheet) before opening the detail sheet.
+  Future<void> _openPlaylist(Playlist playlist) async {
+    final ids = await songIdsForPlaylist(playlist);
+    final songs = ids.map(songById).whereType<Song>().toList();
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PlaylistSheet(
+        playlist: playlist,
+        songs: songs,
+        isDarkMode: isDarkMode,
+        likedIds: _likedIds,
+        onLikeToggle: _toggleLike,
+        onPlay: _markPlayed,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = AppColors.textPrimary(isDarkMode);
+    final subTextColor = AppColors.textSecondary(isDarkMode);
+    final isLoggedOut = FirebaseAuth.instance.currentUser == null;
+
+    return Scaffold(
+      body: Stack(
+        children: [
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isDarkMode
+                    ? AppColors.backgroundDarkAlt
+                    : AppColors.backgroundLightAlt,
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                CustomAppBar(
+                  isDarkMode: !isDarkMode,
+                  showLoginButton: isLoggedOut,
+                  activePage: "Library",
+                  onToggleTheme: _toggleTheme,
+                ),
+                Expanded(
+                  child: !_loaded
+                      ? Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.primaryPink,
+                          ),
+                        )
+                      : ListView(
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                          children: [
+                            Text(
+                              "Your Library",
+                              style: GoogleFonts.spaceGrotesk(
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                color: textColor,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "${_likedIds.length} liked • ${_savedIds.length} saved • ${playlists.length} playlists",
+                              style: GoogleFonts.spaceGrotesk(
+                                fontSize: 13,
+                                color: subTextColor,
+                              ),
+                            ),
+                            const SizedBox(height: 22),
+                            _buildTabSelector(),
+                            const SizedBox(height: 20),
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 260),
+                              child: Container(
+                                key: ValueKey(_tabIndex),
+                                child: _buildTabContent(),
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabSelector() {
+    final tabs = ['Liked', 'Saved', 'Playlists', 'Recent'];
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        color: AppColors.glassSurface(
+          isDarkMode,
+          darkAlpha: 0.10,
+          lightAlpha: 0.05,
+        ),
+        border: Border.all(color: AppColors.glassBorder(isDarkMode)),
+      ),
+      child: Row(
+        children: List.generate(tabs.length, (i) {
+          final selected = _tabIndex == i;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _tabIndex = i),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(26),
+                  gradient: selected
+                      ? const LinearGradient(colors: AppColors.primaryGradient)
+                      : null,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  tabs[i],
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: selected
+                        ? Colors.white
+                        : AppColors.textSecondary(isDarkMode),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildTabContent() {
+    switch (_tabIndex) {
+      case 0:
+        return _buildLikedTab();
+      case 1:
+        return _buildSavedTab();
+      case 2:
+        return _buildPlaylistsTab();
+      default:
+        return _buildRecentTab();
+    }
+  }
+
+  Widget _buildLikedTab() {
+    final likedSongs = allSongs.where((s) => _likedIds.contains(s.id)).toList();
+    if (likedSongs.isEmpty) {
+      return _emptyState(
+        icon: Icons.favorite_border_rounded,
+        title: "No liked songs yet",
+        subtitle: "Tap the heart on any track in Discover to save it here.",
+      );
+    }
+    return Column(
+      children: likedSongs
+          .map(
+            (s) => _SongTile(
+              song: s,
+              isDarkMode: isDarkMode,
+              isLiked: true,
+              onLikeToggle: () => _toggleLike(s.id),
+              onTap: () => _markPlayed(s),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Widget _buildSavedTab() {
+    final savedSongs = allSongs.where((s) => _savedIds.contains(s.id)).toList();
+    if (savedSongs.isEmpty) {
+      return _emptyState(
+        icon: Icons.bookmark_border_rounded,
+        title: "No saved songs yet",
+        subtitle: "Tap the bookmark on any track in Discover to save it here.",
+      );
+    }
+    return Column(
+      children: savedSongs
+          .map(
+            (s) => _SavedSongTile(
+              song: s,
+              isDarkMode: isDarkMode,
+              onSaveToggle: () => _toggleSaved(s.id),
+              onTap: () => _markPlayed(s),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Widget _buildPlaylistsTab() {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: playlists.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 14,
+        crossAxisSpacing: 14,
+        childAspectRatio: 1.25,
+      ),
+      itemBuilder: (context, i) {
+        final playlist = playlists[i];
+        return _PlaylistCard(
+          playlist: playlist,
+          isDarkMode: isDarkMode,
+          onTap: () => _openPlaylist(playlist),
+        );
+      },
+    );
+  }
+
+  Widget _buildRecentTab() {
+    final recentSongs = _recentIds.map(songById).whereType<Song>().toList();
+    if (recentSongs.isEmpty) {
+      return _emptyState(
+        icon: Icons.history_rounded,
+        title: "Nothing played yet",
+        subtitle: "Songs you play will show up here.",
+      );
+    }
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: _clearRecent,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+            ),
+            icon: Icon(
+              Icons.delete_outline_rounded,
+              size: 16,
+              color: AppColors.textSecondary(isDarkMode),
+            ),
+            label: Text(
+              "Clear",
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary(isDarkMode),
+              ),
+            ),
+          ),
+        ),
+        ...recentSongs.map(
+          (s) => _SongTile(
+            song: s,
+            isDarkMode: isDarkMode,
+            isLiked: _likedIds.contains(s.id),
+            onLikeToggle: () => _toggleLike(s.id),
+            onTap: () => _markPlayed(s),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _emptyState({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 70),
+      child: Column(
+        children: [
+          Icon(icon, size: 46, color: AppColors.textFaint(isDarkMode)),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary(isDarkMode),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 13,
+              color: AppColors.textSecondary(isDarkMode),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Song tile — used by Liked, Recent, and inside the playlist sheet.
+// ---------------------------------------------------------------------------
+
+class _SongTile extends StatelessWidget {
+  final Song song;
+  final bool isDarkMode;
+  final bool isLiked;
+  final VoidCallback onLikeToggle;
+  final VoidCallback onTap;
+
+  const _SongTile({
+    required this.song,
+    required this.isDarkMode,
+    required this.isLiked,
+    required this.onLikeToggle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          color: AppColors.glassSurface(
+            isDarkMode,
+            darkAlpha: 0.08,
+            lightAlpha: 0.04,
+          ),
+          border: Border.all(color: AppColors.glassBorder(isDarkMode)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(colors: song.colors),
+              ),
+              child: const Icon(
+                Icons.music_note_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.spaceGrotesk(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: AppColors.textPrimary(isDarkMode),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 12,
+                      color: AppColors.textSecondary(isDarkMode),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: onLikeToggle,
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(
+                  isLiked
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  color: isLiked
+                      ? AppColors.primaryPink
+                      : AppColors.textSecondary(isDarkMode),
+                  size: 20,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Saved song tile — used by the "Saved" tab. Same layout as _SongTile but
+// shows a bookmark icon (mirrors the save button on Discover) instead of
+// the heart, since "saved" and "liked" are independent states.
+// ---------------------------------------------------------------------------
+
+class _SavedSongTile extends StatelessWidget {
+  final Song song;
+  final bool isDarkMode;
+  final VoidCallback onSaveToggle;
+  final VoidCallback onTap;
+
+  const _SavedSongTile({
+    required this.song,
+    required this.isDarkMode,
+    required this.onSaveToggle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          color: AppColors.glassSurface(
+            isDarkMode,
+            darkAlpha: 0.08,
+            lightAlpha: 0.04,
+          ),
+          border: Border.all(color: AppColors.glassBorder(isDarkMode)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(colors: song.colors),
+              ),
+              child: const Icon(
+                Icons.music_note_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.spaceGrotesk(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: AppColors.textPrimary(isDarkMode),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 12,
+                      color: AppColors.textSecondary(isDarkMode),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: onSaveToggle,
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(
+                  Icons.bookmark_rounded,
+                  color: song.colors.last,
+                  size: 20,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Playlist card (grid) + detail sheet
+// ---------------------------------------------------------------------------
+
+class _PlaylistCard extends StatelessWidget {
+  final Playlist playlist;
+  final bool isDarkMode;
+  final VoidCallback onTap;
+
+  const _PlaylistCard({
+    required this.playlist,
+    required this.isDarkMode,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: playlist.gradient,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: playlist.gradient.first.withValues(alpha: 0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.22),
+              ),
+              child: Icon(playlist.icon, color: Colors.white, size: 18),
+            ),
+            const Spacer(),
+            Text(
+              playlist.title,
+              style: GoogleFonts.spaceGrotesk(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              "${playlist.songIds.length} songs",
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 11,
+                color: Colors.white70,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PlaylistSheet extends StatefulWidget {
+  final Playlist playlist;
+  final List<Song> songs;
+  final bool isDarkMode;
+  final Set<String> likedIds;
+  final Future<void> Function(String id) onLikeToggle;
+  final Future<void> Function(Song song) onPlay;
+
+  const _PlaylistSheet({
+    required this.playlist,
+    required this.songs,
+    required this.isDarkMode,
+    required this.likedIds,
+    required this.onLikeToggle,
+    required this.onPlay,
+  });
+
+  @override
+  State<_PlaylistSheet> createState() => _PlaylistSheetState();
+}
+
+class _PlaylistSheetState extends State<_PlaylistSheet> {
+  late Set<String> _liked;
+
+  @override
+  void initState() {
+    super.initState();
+    _liked = Set.from(widget.likedIds);
+  }
+
+  Future<void> _toggle(String id) async {
+    setState(() {
+      if (_liked.contains(id)) {
+        _liked.remove(id);
+      } else {
+        _liked.add(id);
+      }
+    });
+    await widget.onLikeToggle(id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDarkMode = widget.isDarkMode;
+    final songs = widget.songs;
+
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          decoration: BoxDecoration(
+            color: isDarkMode
+                ? const Color(0xff220833).withValues(alpha: 0.97)
+                : Colors.white.withValues(alpha: 0.96),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border(
+              top: BorderSide(color: AppColors.glassBorder(isDarkMode)),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.glassBorder(
+                    isDarkMode,
+                    darkAlpha: 0.35,
+                    lightAlpha: 0.25,
+                  ),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: widget.playlist.gradient,
+                      ),
+                    ),
+                    child: Icon(
+                      widget.playlist.icon,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.playlist.title,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary(isDarkMode),
+                          ),
+                        ),
+                        Text(
+                          widget.playlist.description,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 12,
+                            color: AppColors.textSecondary(isDarkMode),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: songs
+                        .map(
+                          (s) => _SongTile(
+                            song: s,
+                            isDarkMode: isDarkMode,
+                            isLiked: _liked.contains(s.id),
+                            onLikeToggle: () => _toggle(s.id),
+                            onTap: () => widget.onPlay(s),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
