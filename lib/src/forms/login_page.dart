@@ -1,13 +1,10 @@
-import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:http/http.dart' as http;
 import 'package:animated_text_kit/animated_text_kit.dart';
-import 'package:landingpage/src/services/apiUrl.dart';
-import 'package:landingpage/src/services/registerapiservice.dart';
 import 'package:landingpage/src/ui/screens/dashboard.dart';
 import 'package:landingpage/src/ui/widgets/music_wave.dart';
 import 'package:landingpage/src/utils/colors.dart';
@@ -24,13 +21,10 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final RegisterService registerService = RegisterService();
+  final FirebaseAuth auth = FirebaseAuth.instance;
 
-  // Separate controllers for each field — no more copy-pasted duplicates.
-  final TextEditingController user_name = TextEditingController();
-  final TextEditingController user_email = TextEditingController();
-  final TextEditingController password = TextEditingController();
-  final TextEditingController user_ph_no = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
 
   bool isGoogleHovered = false;
   bool isAppleHovered = false;
@@ -38,135 +32,157 @@ class _LoginPageState extends State<LoginPage> {
   bool obscureLoginPassword = true;
   bool rememberMe = false;
 
-  // Prevents double-taps from firing the API call twice.
-  bool isSigningIn = false;
-
   // THEME STATE — dark mode is default
   bool isDarkMode = true;
 
-  @override
-  void dispose() {
-    user_name.dispose();
-    user_email.dispose();
-    password.dispose();
-    user_ph_no.dispose();
-    super.dispose();
-  }
-
-  // SIGN IN — calls the login API directly (same request pattern as
-  // RegisterService.registerUser below), no separate service class.
+  // SIGN IN WITH EMAIL AND PASSWORD
 
   Future<void> signInWithEmail() async {
-    if (user_email.text.trim().isEmpty) {
+    if (emailController.text.trim().isEmpty) {
       showMessage("Please enter your email.");
       return;
     }
 
-    if (!user_email.text.contains("@gmail.com")) {
+    if (!emailController.text.contains("@gmail.com")) {
       showMessage("Please enter a valid email.");
       return;
     }
 
-    if (password.text.trim().isEmpty) {
+    if (passwordController.text.trim().isEmpty) {
       showMessage("Please enter your password.");
       return;
     }
 
-    if (password.text.trim().length < 6) {
+    if (passwordController.text.trim().length < 6) {
       showMessage("Password must contain minimum 6 characters.");
       return;
     }
-    final result = await registerService.registerUser(
-      username: user_name.text.trim(),
-      email: user_email.text.trim(),
-      password: password.text.trim(),
-      phone: user_ph_no.text.trim(),
-    );
-    if (isSigningIn) return; // guard against double taps
-    setState(() => isSigningIn = true);
 
     try {
-      final response = await http.post(
-        Uri.parse(
-          BaseUrl.registerAPIUrl,
-        ), // <-- add this to apiUrl.dart, next to registerAPIUrl
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "user_name": user_name.text.trim(),
-          "user_email": user_email.text.trim(),
-          "password": password.text.trim(),
-          "phone": int.parse(user_ph_no.text.trim()),
-        }),
+      await auth.signInWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
       );
 
-      final Map<String, dynamic> data = jsonDecode(response.body);
+      showMessage("Welcome back!", success: true);
 
-      if (!mounted) return;
-      setState(() => isSigningIn = false);
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        showMessage(
-          (data["message"] as String?) ?? "Welcome back!",
-          success: true,
-        );
-
-        user_email.clear();
-        password.clear();
-
-        await Future.delayed(const Duration(seconds: 2));
-
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const DashboardPage()),
-        );
-      } else {
-        showMessage((data["message"] as String?) ?? "Login failed.");
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => isSigningIn = false);
-      showMessage("Something went wrong: $e");
-    }
-  }
-
-  // CREATE USER — backed by our own API via RegisterService.
-
-  Future<void> registerUser() async {
-    final result = await registerService.registerUser(
-      username: user_name.text.trim(),
-      email: user_email.text.trim(),
-      password: password.text.trim(),
-      phone: user_ph_no.text.trim(),
-    );
-
-    if (!mounted) return;
-
-    if (result["success"] == true) {
-      showMessage(
-        (result["message"] as String?) ?? "Account created successfully!",
-        success: true,
-      );
-
-      user_name.clear();
-      user_email.clear();
-      password.clear();
-      user_ph_no.clear();
+      emailController.clear();
+      passwordController.clear();
 
       await Future.delayed(const Duration(seconds: 2));
 
       if (!mounted) return;
-
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const DashboardPage()),
       );
-    } else {
-      showMessage((result["message"] as String?) ?? "Registration failed.");
+    } on FirebaseAuthException catch (e) {
+      String message;
+
+      switch (e.code) {
+        case "user-not-found":
+          message = "No account found for that email.";
+          break;
+
+        case "wrong-password":
+          message = "Incorrect password.";
+          break;
+
+        case "invalid-credential":
+          message = "Incorrect email or password.";
+          break;
+
+        case "invalid-email":
+          message = "Invalid email address.";
+          break;
+
+        case "too-many-requests":
+          message = "Too many attempts. Try again later.";
+          break;
+
+        case "network-request-failed":
+          message = "Check your internet connection.";
+          break;
+
+        default:
+          message = e.message ?? "Sign in failed.";
+      }
+
+      showMessage(message);
     }
   }
-  // FORGOT PASSWORD — plain UI flow, no backend call wired up yet.
-  // Hook this up to your own reset-password API when it's ready.
+
+  // CREATE USER WITH EMAIL AND PASSWORD
+
+  Future<void> registerUser() async {
+    if (emailController.text.trim().isEmpty) {
+      showMessage("Please enter your email.");
+      return;
+    }
+
+    if (!emailController.text.contains("@gmail.com")) {
+      showMessage("Please enter a valid email.");
+      return;
+    }
+
+    if (passwordController.text.trim().isEmpty) {
+      showMessage("Please enter your password.");
+      return;
+    }
+
+    if (passwordController.text.trim().length < 6) {
+      showMessage("Password must contain minimum 6 characters.");
+      return;
+    }
+
+    try {
+      await auth.createUserWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
+      );
+
+      showMessage("Account created successfully!", success: true);
+
+      emailController.clear();
+      passwordController.clear();
+
+      // Wait so the popup is visible before navigating away
+      await Future.delayed(const Duration(seconds: 2));
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const DashboardPage()),
+      );
+    } on FirebaseAuthException catch (e) {
+      String message;
+
+      switch (e.code) {
+        case "email-already-in-use":
+          message = "This email is already registered.";
+          break;
+
+        case "weak-password":
+          message = "Password is too weak.";
+          break;
+
+        case "invalid-email":
+          message = "Invalid email address.";
+          break;
+
+        case "network-request-failed":
+          message = "Check your internet connection.";
+          break;
+
+        default:
+          message = e.message ?? "Registration failed.";
+      }
+
+      showMessage(message);
+    }
+  }
+
+  // FORGOT PASSWORD
 
   Future<void> resetPassword(String email) async {
     if (email.trim().isEmpty) {
@@ -179,14 +195,67 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    showMessage("Password reset link sent to $email", success: true);
+    try {
+      await auth.sendPasswordResetEmail(email: email.trim());
+      showMessage("Password reset link sent to $email", success: true);
+    } on FirebaseAuthException catch (e) {
+      String message;
+
+      switch (e.code) {
+        case "user-not-found":
+          message = "No account found for that email.";
+          break;
+
+        case "invalid-email":
+          message = "Invalid email address.";
+          break;
+
+        case "network-request-failed":
+          message = "Check your internet connection.";
+          break;
+
+        default:
+          message = e.message ?? "Could not send reset link.";
+      }
+
+      showMessage(message);
+    }
   }
 
-  // GOOGLE SIGN IN — plain UI flow, no backend call wired up yet.
-  // Hook this up to your own OAuth/social-login API when it's ready.
+  // GOOGLE SIGN IN
 
   Future<void> signInWithGoogle() async {
-    showMessage("Google sign-in isn't connected yet.");
+    try {
+      GoogleAuthProvider googleProvider = GoogleAuthProvider();
+
+      UserCredential userCredential = await FirebaseAuth.instance
+          .signInWithPopup(googleProvider);
+
+      if (!mounted) return;
+
+      showMessage(
+        "Welcome ${userCredential.user?.displayName ?? "User"}",
+        success: true,
+      );
+
+      // Wait so the popup is visible before navigating away
+      await Future.delayed(const Duration(seconds: 2));
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const DashboardPage()),
+      );
+    } on FirebaseAuthException catch (e) {
+      debugPrint("Code: ${e.code}");
+      debugPrint("Message: ${e.message}");
+      showMessage("${e.code}\n${e.message}");
+    } catch (e, stackTrace) {
+      debugPrint(e.toString());
+      debugPrint(stackTrace.toString());
+      showMessage(e.toString());
+    }
   }
 
   void showMessage(String message, {bool success = false}) {
@@ -240,14 +309,12 @@ class _LoginPageState extends State<LoginPage> {
       transitionDuration: const Duration(milliseconds: 320),
       pageBuilder: (context, animation, secondaryAnimation) {
         return _RegisterPopup(
-          user_name: user_name,
-          user_email: user_email,
-          password: password,
-          user_ph_no: user_ph_no,
+          emailController: emailController,
+          passwordController: passwordController,
           isDarkMode: isDarkMode,
-          onRegister: () async {
+          onRegister: () {
             Navigator.of(context, rootNavigator: true).pop();
-            await registerUser();
+            registerUser();
           },
         );
       },
@@ -449,103 +516,111 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                                 const SizedBox(height: 28),
 
-                                // LINE 2 — Username
-                                TextField(
-                                  controller: user_name,
-                                  keyboardType: TextInputType.name,
-                                  style: GoogleFonts.spaceGrotesk(
-                                    color: textColor,
-                                    fontSize: 16,
-                                  ),
-                                  decoration: InputDecoration(
-                                    labelText: "Username",
-                                    floatingLabelBehavior:
-                                        FloatingLabelBehavior.auto,
-                                    labelStyle: GoogleFonts.spaceGrotesk(
-                                      color: textColor,
-                                      fontSize: 15,
-                                    ),
-                                    floatingLabelStyle:
-                                        GoogleFonts.spaceGrotesk(
-                                          color: AppColors.purpleAccent,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                    prefixIcon: Padding(
-                                      padding: const EdgeInsets.all(12),
-                                      child: Icon(
-                                        Icons.person_outline_rounded,
-                                        color: textColor,
-                                        size: 22,
-                                      ),
-                                    ),
-                                    filled: true,
-                                    fillColor: fieldFill,
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(15),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(15),
-                                      borderSide: const BorderSide(
-                                        color: AppColors.lavenderAccent,
-                                        width: 2,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 28),
+                                // // LINE 2 — Username
+                                // TextField(
+                                //   controller: emailController,
+                                //   keyboardType: TextInputType.emailAddress,
+                                //   style: GoogleFonts.spaceGrotesk(
+                                //     color: textColor,
+                                //     fontSize: 16,
+                                //   ),
+                                //   decoration: InputDecoration(
+                                //     labelText: "Username",
+                                //     floatingLabelBehavior:
+                                //         FloatingLabelBehavior.auto,
+                                //     labelStyle: GoogleFonts.spaceGrotesk(
+                                //       color: textColor,
+                                //       fontSize: 15,
+                                //     ),
+                                //     floatingLabelStyle:
+                                //         GoogleFonts.spaceGrotesk(
+                                //           color: AppColors.purpleAccent,
+                                //           fontSize: 16,
+                                //           fontWeight: FontWeight.w600,
+                                //         ),
+                                //     prefixIcon: Padding(
+                                //       padding: const EdgeInsets.all(12),
+                                //       child: SvgPicture.asset(
+                                //         "images/email.svg",
+                                //         colorFilter: ColorFilter.mode(
+                                //           textColor,
+                                //           BlendMode.srcIn,
+                                //         ),
+                                //         height: 20,
+                                //         width: 20,
+                                //       ),
+                                //     ),
+                                //     filled: true,
+                                //     fillColor: fieldFill,
+                                //     enabledBorder: OutlineInputBorder(
+                                //       borderRadius: BorderRadius.circular(15),
+                                //       borderSide: BorderSide.none,
+                                //     ),
+                                //     focusedBorder: OutlineInputBorder(
+                                //       borderRadius: BorderRadius.circular(15),
+                                //       borderSide: const BorderSide(
+                                //         color: AppColors.lavenderAccent,
+                                //         width: 2,
+                                //       ),
+                                //     ),
+                                //   ),
+                                // ),
+                                // const SizedBox(height: 28),
 
-                                // LINE 3 — Phone Number
-                                TextField(
-                                  controller: user_ph_no,
-                                  keyboardType: TextInputType.phone,
-                                  style: GoogleFonts.spaceGrotesk(
-                                    color: textColor,
-                                    fontSize: 16,
-                                  ),
-                                  decoration: InputDecoration(
-                                    labelText: "Phone Number",
-                                    floatingLabelBehavior:
-                                        FloatingLabelBehavior.auto,
-                                    labelStyle: GoogleFonts.spaceGrotesk(
-                                      color: textColor,
-                                      fontSize: 15,
-                                    ),
-                                    floatingLabelStyle:
-                                        GoogleFonts.spaceGrotesk(
-                                          color: AppColors.purpleAccent,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                    prefixIcon: Padding(
-                                      padding: const EdgeInsets.all(12),
-                                      child: Icon(
-                                        Icons.phone_outlined,
-                                        color: textColor,
-                                        size: 20,
-                                      ),
-                                    ),
-                                    filled: true,
-                                    fillColor: fieldFill,
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(15),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(15),
-                                      borderSide: const BorderSide(
-                                        color: AppColors.lavenderAccent,
-                                        width: 2,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 28),
+                                // // LINE 3 — Phone Number
+                                // TextField(
+                                //   controller: emailController,
+                                //   keyboardType: TextInputType.emailAddress,
+                                //   style: GoogleFonts.spaceGrotesk(
+                                //     color: textColor,
+                                //     fontSize: 16,
+                                //   ),
+                                //   decoration: InputDecoration(
+                                //     labelText: "phone Number",
+                                //     floatingLabelBehavior:
+                                //         FloatingLabelBehavior.auto,
+                                //     labelStyle: GoogleFonts.spaceGrotesk(
+                                //       color: textColor,
+                                //       fontSize: 15,
+                                //     ),
+                                //     floatingLabelStyle:
+                                //         GoogleFonts.spaceGrotesk(
+                                //           color: AppColors.purpleAccent,
+                                //           fontSize: 16,
+                                //           fontWeight: FontWeight.w600,
+                                //         ),
+                                //     prefixIcon: Padding(
+                                //       padding: const EdgeInsets.all(12),
+                                //       child: SvgPicture.asset(
+                                //         "images/email.svg",
+                                //         colorFilter: ColorFilter.mode(
+                                //           textColor,
+                                //           BlendMode.srcIn,
+                                //         ),
+                                //         height: 20,
+                                //         width: 20,
+                                //       ),
+                                //     ),
+                                //     filled: true,
+                                //     fillColor: fieldFill,
+                                //     enabledBorder: OutlineInputBorder(
+                                //       borderRadius: BorderRadius.circular(15),
+                                //       borderSide: BorderSide.none,
+                                //     ),
+                                //     focusedBorder: OutlineInputBorder(
+                                //       borderRadius: BorderRadius.circular(15),
+                                //       borderSide: const BorderSide(
+                                //         color: AppColors.lavenderAccent,
+                                //         width: 2,
+                                //       ),
+                                //     ),
+                                //   ),
+                                // ),
+                                // const SizedBox(height: 28),
 
                                 // LINE 4 — Email
                                 TextField(
-                                  controller: user_email,
+                                  controller: emailController,
                                   keyboardType: TextInputType.emailAddress,
                                   style: GoogleFonts.spaceGrotesk(
                                     color: textColor,
@@ -596,7 +671,7 @@ class _LoginPageState extends State<LoginPage> {
 
                                 // LINE 5 — Password
                                 TextField(
-                                  controller: password,
+                                  controller: passwordController,
                                   obscureText: obscureLoginPassword,
                                   style: GoogleFonts.spaceGrotesk(
                                     color: textColor,
@@ -654,8 +729,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                                 const SizedBox(height: 22),
 
-                                // SIGN IN BUTTON — submits the fields above,
-                                // disabled while the login request is in flight.
+                                // SIGN IN BUTTON — submits the fields above
                                 SizedBox(
                                   width: double.infinity,
                                   height: 55,
@@ -669,9 +743,7 @@ class _LoginPageState extends State<LoginPage> {
                                       borderRadius: BorderRadius.circular(15),
                                     ),
                                     child: ElevatedButton(
-                                      onPressed: isSigningIn
-                                          ? null
-                                          : signInWithEmail,
+                                      onPressed: signInWithEmail,
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.transparent,
                                         shadowColor: Colors.transparent,
@@ -682,26 +754,14 @@ class _LoginPageState extends State<LoginPage> {
                                           ),
                                         ),
                                       ),
-                                      child: isSigningIn
-                                          ? const SizedBox(
-                                              height: 22,
-                                              width: 22,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2.4,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<
-                                                      Color
-                                                    >(Colors.white),
-                                              ),
-                                            )
-                                          : Text(
-                                              "Sign In",
-                                              style: GoogleFonts.spaceGrotesk(
-                                                color: Colors.white,
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
+                                      child: Text(
+                                        "Sign In",
+                                        style: GoogleFonts.spaceGrotesk(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -1017,22 +1077,18 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-// REGISTER POPUP WIDGET — username + email + phone + password + register
-// button, styled like the app's glass theme.
+// REGISTER POPUP WIDGET — email + password + register button,
+// styled like the app's glass theme.
 
 class _RegisterPopup extends StatefulWidget {
-  final TextEditingController user_name;
-  final TextEditingController user_email;
-  final TextEditingController password;
-  final TextEditingController user_ph_no;
+  final TextEditingController emailController;
+  final TextEditingController passwordController;
   final bool isDarkMode;
   final VoidCallback onRegister;
 
   const _RegisterPopup({
-    required this.user_name,
-    required this.user_email,
-    required this.password,
-    required this.user_ph_no,
+    required this.emailController,
+    required this.passwordController,
     required this.isDarkMode,
     required this.onRegister,
   });
@@ -1086,257 +1142,167 @@ class _RegisterPopupState extends State<_RegisterPopup> {
                       ),
                     ],
                   ),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Align(
-                          alignment: Alignment.topRight,
-                          child: GestureDetector(
-                            onTap: () => Navigator.of(
-                              context,
-                              rootNavigator: true,
-                            ).pop(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: GestureDetector(
+                          onTap: () =>
+                              Navigator.of(context, rootNavigator: true).pop(),
+                          child: Icon(
+                            Icons.close_rounded,
+                            color: textColor.withOpacity(0.7),
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        "Create your account",
+                        style: GoogleFonts.spaceGrotesk(
+                          color: textColor,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: widget.emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        style: GoogleFonts.spaceGrotesk(
+                          color: textColor,
+                          fontSize: 16,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: "Email",
+                          floatingLabelBehavior: FloatingLabelBehavior.auto,
+                          labelStyle: GoogleFonts.spaceGrotesk(
+                            color: textColor,
+                            fontSize: 15,
+                          ),
+                          floatingLabelStyle: GoogleFonts.spaceGrotesk(
+                            color: AppColors.purpleAccent,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: SvgPicture.asset(
+                              "images/email.svg",
+                              colorFilter: ColorFilter.mode(
+                                textColor,
+                                BlendMode.srcIn,
+                              ),
+                              height: 20,
+                              width: 20,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: fieldFill,
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: const BorderSide(
+                              color: AppColors.lavenderAccent,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      TextField(
+                        controller: widget.passwordController,
+                        obscureText: obscurePassword,
+                        style: GoogleFonts.spaceGrotesk(
+                          color: textColor,
+                          fontSize: 16,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: "Password",
+                          floatingLabelBehavior: FloatingLabelBehavior.auto,
+                          labelStyle: GoogleFonts.spaceGrotesk(
+                            color: textColor,
+                            fontSize: 15,
+                          ),
+                          floatingLabelStyle: GoogleFonts.spaceGrotesk(
+                            color: AppColors.lavenderAccent,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(12),
                             child: Icon(
-                              Icons.close_rounded,
-                              color: textColor.withOpacity(0.7),
+                              CupertinoIcons.lock_rotation_open,
+                              color: textColor,
                               size: 22,
                             ),
                           ),
-                        ),
-                        Text(
-                          "Create your account",
-                          style: GoogleFonts.spaceGrotesk(
-                            color: textColor,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        TextField(
-                          controller: widget.user_name,
-                          keyboardType: TextInputType.name,
-                          style: GoogleFonts.spaceGrotesk(
-                            color: textColor,
-                            fontSize: 16,
-                          ),
-                          decoration: InputDecoration(
-                            labelText: "Username",
-                            floatingLabelBehavior: FloatingLabelBehavior.auto,
-                            labelStyle: GoogleFonts.spaceGrotesk(
-                              color: textColor,
-                              fontSize: 15,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              obscurePassword
+                                  ? Icons.visibility_off_rounded
+                                  : Icons.visibility_rounded,
+                              color: textColor.withOpacity(0.7),
+                              size: 20,
                             ),
-                            floatingLabelStyle: GoogleFonts.spaceGrotesk(
+                            onPressed: () => setState(
+                              () => obscurePassword = !obscurePassword,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: fieldFill,
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: const BorderSide(
                               color: AppColors.purpleAccent,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                              width: 2,
                             ),
-                            prefixIcon: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Icon(
-                                Icons.person_outline_rounded,
-                                color: textColor,
-                                size: 22,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 55,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: AppColors.loginButtonGradient,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: ElevatedButton(
+                            onPressed: widget.onRegister,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
                               ),
                             ),
-                            filled: true,
-                            fillColor: fieldFill,
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(15),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(15),
-                              borderSide: const BorderSide(
-                                color: AppColors.lavenderAccent,
-                                width: 2,
+                            child: Text(
+                              "Register",
+                              style: GoogleFonts.spaceGrotesk(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        TextField(
-                          controller: widget.user_email,
-                          keyboardType: TextInputType.emailAddress,
-                          style: GoogleFonts.spaceGrotesk(
-                            color: textColor,
-                            fontSize: 16,
-                          ),
-                          decoration: InputDecoration(
-                            labelText: "Email",
-                            floatingLabelBehavior: FloatingLabelBehavior.auto,
-                            labelStyle: GoogleFonts.spaceGrotesk(
-                              color: textColor,
-                              fontSize: 15,
-                            ),
-                            floatingLabelStyle: GoogleFonts.spaceGrotesk(
-                              color: AppColors.purpleAccent,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            prefixIcon: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: SvgPicture.asset(
-                                "images/email.svg",
-                                colorFilter: ColorFilter.mode(
-                                  textColor,
-                                  BlendMode.srcIn,
-                                ),
-                                height: 20,
-                                width: 20,
-                              ),
-                            ),
-                            filled: true,
-                            fillColor: fieldFill,
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(15),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(15),
-                              borderSide: const BorderSide(
-                                color: AppColors.lavenderAccent,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        TextField(
-                          controller: widget.user_ph_no,
-                          keyboardType: TextInputType.phone,
-                          style: GoogleFonts.spaceGrotesk(
-                            color: textColor,
-                            fontSize: 16,
-                          ),
-                          decoration: InputDecoration(
-                            labelText: "Phone Number",
-                            floatingLabelBehavior: FloatingLabelBehavior.auto,
-                            labelStyle: GoogleFonts.spaceGrotesk(
-                              color: textColor,
-                              fontSize: 15,
-                            ),
-                            floatingLabelStyle: GoogleFonts.spaceGrotesk(
-                              color: AppColors.purpleAccent,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            prefixIcon: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Icon(
-                                Icons.phone_outlined,
-                                color: textColor,
-                                size: 20,
-                              ),
-                            ),
-                            filled: true,
-                            fillColor: fieldFill,
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(15),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(15),
-                              borderSide: const BorderSide(
-                                color: AppColors.lavenderAccent,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        TextField(
-                          controller: widget.password,
-                          obscureText: obscurePassword,
-                          style: GoogleFonts.spaceGrotesk(
-                            color: textColor,
-                            fontSize: 16,
-                          ),
-                          decoration: InputDecoration(
-                            labelText: "Password",
-                            floatingLabelBehavior: FloatingLabelBehavior.auto,
-                            labelStyle: GoogleFonts.spaceGrotesk(
-                              color: textColor,
-                              fontSize: 15,
-                            ),
-                            floatingLabelStyle: GoogleFonts.spaceGrotesk(
-                              color: AppColors.lavenderAccent,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            prefixIcon: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Icon(
-                                CupertinoIcons.lock_rotation_open,
-                                color: textColor,
-                                size: 22,
-                              ),
-                            ),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                obscurePassword
-                                    ? Icons.visibility_off_rounded
-                                    : Icons.visibility_rounded,
-                                color: textColor.withOpacity(0.7),
-                                size: 20,
-                              ),
-                              onPressed: () => setState(
-                                () => obscurePassword = !obscurePassword,
-                              ),
-                            ),
-                            filled: true,
-                            fillColor: fieldFill,
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(15),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(15),
-                              borderSide: const BorderSide(
-                                color: AppColors.purpleAccent,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 55,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: AppColors.loginButtonGradient,
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                            child: ElevatedButton(
-                              onPressed: widget.onRegister,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                shadowColor: Colors.transparent,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(15),
-                                ),
-                              ),
-                              child: Text(
-                                "Register",
-                                style: GoogleFonts.spaceGrotesk(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
