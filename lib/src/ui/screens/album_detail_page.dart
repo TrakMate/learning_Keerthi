@@ -5,6 +5,7 @@ import 'package:landingpage/src/utils/colors.dart';
 import 'package:landingpage/src/models/song_data.dart';
 import 'package:landingpage/src/models/album_data.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:landingpage/src/ui/custom/custom_appbar.dart';
 
 /// Shows one album's cover + tracklist. Tracks are playable, likeable,
 /// saveable, and can be added to a playlist — all persisted through the

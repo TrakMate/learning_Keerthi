@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 // import 'package:landingpage/main.dart';
 import 'package:landingpage/src/forms/login_page.dart';
+import 'package:landingpage/src/ui/screens/album_page.dart';
 import 'package:landingpage/src/ui/screens/discover.dart';
 import 'package:landingpage/src/ui/screens/homepage.dart';
 import 'package:landingpage/src/ui/screens/library.dart';
@@ -160,7 +161,7 @@ class CustomAppBar extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const Placeholder(),
+                                  builder: (_) => const AlbumsPage(),
                                 ),
                               );
                             },
