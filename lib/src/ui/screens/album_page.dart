@@ -4,6 +4,7 @@ import 'package:landingpage/src/ui/custom/custom_appbar.dart';
 import 'package:landingpage/src/ui/screens/album_detail_page.dart';
 import 'package:landingpage/src/utils/colors.dart';
 import 'package:landingpage/src/models/album_data.dart';
+
 // import 'package:landingpage/src/ui/pages/album_detail_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

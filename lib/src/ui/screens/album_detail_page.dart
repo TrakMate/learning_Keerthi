@@ -1,16 +1,16 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:landingpage/src/models/library_state.dart';
 import 'package:landingpage/src/utils/colors.dart';
 import 'package:landingpage/src/models/song_data.dart';
 import 'package:landingpage/src/models/album_data.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:landingpage/src/ui/custom/custom_appbar.dart';
+// import 'package:landingpage/src/state/library_state.dart';
 
 /// Shows one album's cover + tracklist. Tracks are playable, likeable,
-/// saveable, and can be added to a playlist — all persisted through the
-/// same SharedPreferences keys DiscoverPage/LibraryPage already use, so
-/// state stays in sync across the app.
+/// saveable, and can be added to a playlist — all persisted and shared
+/// through LibraryState, so state stays in sync with LibraryPage instantly,
+/// even if LibraryPage never left the widget tree.
 class AlbumDetailPage extends StatefulWidget {
   final String albumId;
   final bool isDarkMode;
@@ -215,55 +215,24 @@ class _AlbumSongBar extends StatefulWidget {
 }
 
 class _AlbumSongBarState extends State<_AlbumSongBar> {
-  bool isFavorited = false;
-  bool isSaved = false;
+  final LibraryState _lib = LibraryState.instance;
   double _progress = 0.0;
 
   @override
   void initState() {
     super.initState();
-    _loadLikedState();
-    _loadSavedState();
-  }
-
-  Future<void> _loadLikedState() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    final liked = prefs.getStringList(likedSongIdsKey) ?? [];
-    setState(() => isFavorited = liked.contains(widget.song.id));
-  }
-
-  Future<void> _loadSavedState() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    final saved = prefs.getStringList(savedSongIdsKey) ?? [];
-    setState(() => isSaved = saved.contains(widget.song.id));
+    // No-op if already loaded elsewhere in the app; safe to call from any
+    // page that might be the first one opened.
+    _lib.load();
   }
 
   Future<void> _toggleFavorite() async {
-    final prefs = await SharedPreferences.getInstance();
-    final liked = (prefs.getStringList(likedSongIdsKey) ?? []).toSet();
-    final nowFavorited = !isFavorited;
-    setState(() => isFavorited = nowFavorited);
-    if (nowFavorited) {
-      liked.add(widget.song.id);
-    } else {
-      liked.remove(widget.song.id);
-    }
-    await prefs.setStringList(likedSongIdsKey, liked.toList());
+    await _lib.toggleLiked(widget.song.id);
   }
 
   Future<void> _toggleSaved() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = (prefs.getStringList(savedSongIdsKey) ?? []).toSet();
-    final nowSaved = !isSaved;
-    setState(() => isSaved = nowSaved);
-    if (nowSaved) {
-      saved.add(widget.song.id);
-    } else {
-      saved.remove(widget.song.id);
-    }
-    await prefs.setStringList(savedSongIdsKey, saved.toList());
+    final wasSaved = _lib.isSaved(widget.song.id);
+    await _lib.toggleSaved(widget.song.id);
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -274,9 +243,9 @@ class _AlbumSongBarState extends State<_AlbumSongBar> {
             ? const Color(0xff220833)
             : Colors.white,
         content: Text(
-          nowSaved
-              ? 'Saved "${widget.song.title}"'
-              : 'Removed "${widget.song.title}" from Saved',
+          wasSaved
+              ? 'Removed "${widget.song.title}" from Saved'
+              : 'Saved "${widget.song.title}"',
           style: GoogleFonts.spaceGrotesk(
             color: AppColors.textPrimary(widget.isDarkMode),
             fontWeight: FontWeight.w600,
@@ -287,19 +256,10 @@ class _AlbumSongBarState extends State<_AlbumSongBar> {
     );
   }
 
-  Future<void> _markPlayed() async {
-    final prefs = await SharedPreferences.getInstance();
-    final recent = prefs.getStringList(recentlyPlayedIdsKey) ?? [];
-    recent.remove(widget.song.id);
-    recent.insert(0, widget.song.id);
-    final capped = recent.length > 25 ? recent.sublist(0, 25) : recent;
-    await prefs.setStringList(recentlyPlayedIdsKey, capped);
-  }
-
   void _togglePlay() {
     final nowPlaying = !widget.isPlaying;
     widget.onPlayingChanged(nowPlaying);
-    if (nowPlaying) _markPlayed();
+    if (nowPlaying) _lib.markPlayed(widget.song.id);
   }
 
   void _seek(double value) => setState(() => _progress = value.clamp(0.0, 1.0));
@@ -316,163 +276,175 @@ class _AlbumSongBarState extends State<_AlbumSongBar> {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = widget.isDarkMode;
-    final song = widget.song;
-    final isPlaying = widget.isPlaying;
+    return AnimatedBuilder(
+      animation: _lib,
+      builder: (context, _) {
+        final isDarkMode = widget.isDarkMode;
+        final song = widget.song;
+        final isPlaying = widget.isPlaying;
+        final isFavorited = _lib.isLiked(song.id);
+        final isSaved = _lib.isSaved(song.id);
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            color: AppColors.glassSurface(isDarkMode),
-            border: Border.all(color: AppColors.glassBorder(isDarkMode)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 22,
-                child: Text(
-                  '${widget.trackNumber}',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 12,
-                    color: AppColors.textFaint(isDarkMode),
-                  ),
-                ),
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                color: AppColors.glassSurface(isDarkMode),
+                border: Border.all(color: AppColors.glassBorder(isDarkMode)),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 22,
+                    child: Text(
+                      '${widget.trackNumber}',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 12,
+                        color: AppColors.textFaint(isDarkMode),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            song.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.spaceGrotesk(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              color: AppColors.textPrimary(isDarkMode),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                song.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.spaceGrotesk(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: AppColors.textPrimary(isDarkMode),
+                                ),
+                              ),
                             ),
+                            GestureDetector(
+                              onTap: _openAddToPlaylist,
+                              child: Padding(
+                                padding: const EdgeInsets.all(4),
+                                child: Icon(
+                                  Icons.playlist_add_rounded,
+                                  size: 20,
+                                  color: AppColors.textFaint(isDarkMode),
+                                ),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: _toggleSaved,
+                              child: Padding(
+                                padding: const EdgeInsets.all(4),
+                                child: Icon(
+                                  isSaved
+                                      ? Icons.bookmark_rounded
+                                      : Icons.bookmark_border_rounded,
+                                  size: 18,
+                                  color: isSaved
+                                      ? song.colors.last
+                                      : AppColors.textFaint(isDarkMode),
+                                ),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: _toggleFavorite,
+                              child: Padding(
+                                padding: const EdgeInsets.all(4),
+                                child: Icon(
+                                  isFavorited
+                                      ? Icons.favorite_rounded
+                                      : Icons.favorite_border_rounded,
+                                  size: 18,
+                                  color: isFavorited
+                                      ? song.colors.last
+                                      : AppColors.textFaint(isDarkMode),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          "${isPlaying ? 'Now Playing' : 'Paused'} • ${song.artist}",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 12,
+                            color: isDarkMode ? Colors.white60 : Colors.black54,
                           ),
                         ),
-                        GestureDetector(
-                          onTap: _openAddToPlaylist,
-                          child: Padding(
-                            padding: const EdgeInsets.all(4),
-                            child: Icon(
-                              Icons.playlist_add_rounded,
-                              size: 20,
-                              color: AppColors.textFaint(isDarkMode),
+                        const SizedBox(height: 2),
+                        SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            trackHeight: 4,
+                            activeTrackColor: song.colors.last,
+                            inactiveTrackColor: AppColors.glassBorder(
+                              isDarkMode,
+                              darkAlpha: 0.15,
+                              lightAlpha: 0.08,
+                            ),
+                            thumbColor: song.colors.last,
+                            thumbShape: const RoundSliderThumbShape(
+                              enabledThumbRadius: 5,
+                            ),
+                            overlayShape: const RoundSliderOverlayShape(
+                              overlayRadius: 12,
+                            ),
+                            overlayColor: song.colors.last.withValues(
+                              alpha: 0.2,
                             ),
                           ),
-                        ),
-                        GestureDetector(
-                          onTap: _toggleSaved,
-                          child: Padding(
-                            padding: const EdgeInsets.all(4),
-                            child: Icon(
-                              isSaved
-                                  ? Icons.bookmark_rounded
-                                  : Icons.bookmark_border_rounded,
-                              size: 18,
-                              color: isSaved
-                                  ? song.colors.last
-                                  : AppColors.textFaint(isDarkMode),
-                            ),
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: _toggleFavorite,
-                          child: Padding(
-                            padding: const EdgeInsets.all(4),
-                            child: Icon(
-                              isFavorited
-                                  ? Icons.favorite_rounded
-                                  : Icons.favorite_border_rounded,
-                              size: 18,
-                              color: isFavorited
-                                  ? song.colors.last
-                                  : AppColors.textFaint(isDarkMode),
-                            ),
+                          child: Slider(
+                            value: _progress,
+                            min: 0.0,
+                            max: 1.0,
+                            onChanged: _seek,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      "${isPlaying ? 'Now Playing' : 'Paused'} • ${song.artist}",
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 12,
-                        color: isDarkMode ? Colors.white60 : Colors.black54,
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: _togglePlay,
+                    child: Container(
+                      padding: const EdgeInsets.all(11),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(colors: song.colors),
+                      ),
+                      child: Icon(
+                        isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 20,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    SliderTheme(
-                      data: SliderTheme.of(context).copyWith(
-                        trackHeight: 4,
-                        activeTrackColor: song.colors.last,
-                        inactiveTrackColor: AppColors.glassBorder(
-                          isDarkMode,
-                          darkAlpha: 0.15,
-                          lightAlpha: 0.08,
-                        ),
-                        thumbColor: song.colors.last,
-                        thumbShape: const RoundSliderThumbShape(
-                          enabledThumbRadius: 5,
-                        ),
-                        overlayShape: const RoundSliderOverlayShape(
-                          overlayRadius: 12,
-                        ),
-                        overlayColor: song.colors.last.withValues(alpha: 0.2),
-                      ),
-                      child: Slider(
-                        value: _progress,
-                        min: 0.0,
-                        max: 1.0,
-                        onChanged: _seek,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: _togglePlay,
-                child: Container(
-                  padding: const EdgeInsets.all(11),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(colors: song.colors),
                   ),
-                  child: Icon(
-                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
 
 // ---------------------------------------------------------------------------
 // Same add-to-playlist sheet pattern as DiscoverPage — lists the library
-// playlists and saves the tapped song into it via song_data.dart.
+// playlists and saves the tapped song into it via LibraryState, which wraps
+// song_data.dart's addSongToPlaylist and notifies both pages of the change.
 // ---------------------------------------------------------------------------
 
 class _AddToPlaylistSheet extends StatelessWidget {
@@ -482,7 +454,10 @@ class _AddToPlaylistSheet extends StatelessWidget {
   const _AddToPlaylistSheet({required this.isDarkMode, required this.song});
 
   Future<void> _add(BuildContext context, Playlist playlist) async {
-    final added = await addSongToPlaylist(playlist.id, song.id);
+    final added = await LibraryState.instance.addToPlaylist(
+      playlist.id,
+      song.id,
+    );
     if (!context.mounted) return;
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context).hideCurrentSnackBar();

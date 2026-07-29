@@ -38,10 +38,18 @@ List<Song> _tracks(
   });
 }
 
-// Palette pulled round-robin from AppColors.songPalette so every album
-// gets a distinct gradient without hard-coding new colors here.
-List<Color> _p(int i) =>
-    AppColors.songPalette[i % AppColors.songPalette.length];
+// Only two source gradients are used across the whole catalogue — the
+// 1st and 5th entries in AppColors.songPalette — alternating by album
+// index, and each rendered at reduced opacity so covers read as soft
+// tinted glass instead of a solid gradient.
+const double _albumGradientAlpha = 0.18;
+
+List<Color> _p(int albumIndex) {
+  final base = albumIndex.isEven
+      ? AppColors.songPalette[0]
+      : AppColors.songPalette[4];
+  return base.map((c) => c.withValues(alpha: _albumGradientAlpha)).toList();
+}
 
 final List<Album> allAlbums = [
   Album(

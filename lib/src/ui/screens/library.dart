@@ -1,16 +1,23 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:landingpage/src/models/library_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:landingpage/src/ui/custom/custom_appbar.dart';
 import 'package:landingpage/src/utils/colors.dart';
 import 'package:landingpage/src/models/song_data.dart';
+// import 'package:landingpage/src/state/library_state.dart';
 
 // Playlist model, the 4 built-in playlists, and playlist storage helpers
-// (songIdsForPlaylist / addSongToPlaylist) now live in song_data.dart so
-// Discover's "Add to playlist" sheet can share them.
+// (songIdsForPlaylist / addSongToPlaylist) live in song_data.dart.
+//
+// Liked / saved / recently-played state, and playlist-add notifications,
+// now flow through LibraryState (state/library_state.dart) instead of this
+// page's own SharedPreferences calls, so anything changed on
+// AlbumDetailPage (or elsewhere) shows up here immediately via
+// AnimatedBuilder — no dependence on didChangeDependencies firing.
 
 // ---------------------------------------------------------------------------
 // LibraryPage
@@ -27,71 +34,22 @@ class LibraryPage extends StatefulWidget {
 class _LibraryPageState extends State<LibraryPage> {
   late bool isDarkMode;
   int _tabIndex = 0;
-  bool _loaded = false;
-  Set<String> _likedIds = {};
-  Set<String> _savedIds = {};
-  List<String> _recentIds = [];
+  final LibraryState _lib = LibraryState.instance;
 
   @override
   void initState() {
     super.initState();
     isDarkMode = widget.isDarkMode;
-    _loadPrefs();
+    // No-op if another page already loaded it.
+    _lib.load();
   }
 
-  Future<void> _loadPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() {
-      _likedIds = (prefs.getStringList(likedSongIdsKey) ?? []).toSet();
-      _savedIds = (prefs.getStringList(savedSongIdsKey) ?? []).toSet();
-      _recentIds = prefs.getStringList(recentlyPlayedIdsKey) ?? [];
-      _loaded = true;
-    });
-  }
+  void _toggleLike(String id) => _lib.toggleLiked(id);
 
-  // Called whenever this page becomes visible again (e.g. navigating back
-  // from Discover after liking/saving something) so the lists stay fresh.
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_loaded) _loadPrefs();
-  }
-
-  Future<void> _toggleLike(String id) async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      if (_likedIds.contains(id)) {
-        _likedIds.remove(id);
-      } else {
-        _likedIds.add(id);
-      }
-    });
-    await prefs.setStringList(likedSongIdsKey, _likedIds.toList());
-  }
-
-  Future<void> _toggleSaved(String id) async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      if (_savedIds.contains(id)) {
-        _savedIds.remove(id);
-      } else {
-        _savedIds.add(id);
-      }
-    });
-    await prefs.setStringList(savedSongIdsKey, _savedIds.toList());
-  }
+  void _toggleSaved(String id) => _lib.toggleSaved(id);
 
   Future<void> _markPlayed(Song song) async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _recentIds.remove(song.id);
-      _recentIds.insert(0, song.id);
-      if (_recentIds.length > 25) {
-        _recentIds = _recentIds.sublist(0, 25);
-      }
-    });
-    await prefs.setStringList(recentlyPlayedIdsKey, _recentIds);
+    await _lib.markPlayed(song.id);
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -111,20 +69,19 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  Future<void> _clearRecent() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() => _recentIds = []);
-    await prefs.remove(recentlyPlayedIdsKey);
-  }
+  Future<void> _clearRecent() => _lib.clearRecent();
 
   Future<void> _toggleTheme() async {
     setState(() => isDarkMode = !isDarkMode);
+    // Theme preference stays local to this toggle handler (not part of
+    // LibraryState, which only tracks likes/saves/recent/playlists).
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('isDarkMode', isDarkMode);
   }
 
   // Resolves the playlist's full song list (built-in + anything added from
-  // Discover's "Add to playlist" sheet) before opening the detail sheet.
+  // Discover's or Album's "Add to playlist" sheet) before opening the
+  // detail sheet.
   Future<void> _openPlaylist(Playlist playlist) async {
     final ids = await songIdsForPlaylist(playlist);
     final songs = ids.map(songById).whereType<Song>().toList();
@@ -137,7 +94,6 @@ class _LibraryPageState extends State<LibraryPage> {
         playlist: playlist,
         songs: songs,
         isDarkMode: isDarkMode,
-        likedIds: _likedIds,
         onLikeToggle: _toggleLike,
         onPlay: _markPlayed,
       ),
@@ -176,43 +132,58 @@ class _LibraryPageState extends State<LibraryPage> {
                   onToggleTheme: _toggleTheme,
                 ),
                 Expanded(
-                  child: !_loaded
-                      ? Center(
+                  child: AnimatedBuilder(
+                    animation: _lib,
+                    builder: (context, _) {
+                      if (!_lib.isLoaded) {
+                        return Center(
                           child: CircularProgressIndicator(
                             color: AppColors.primaryPink,
                           ),
-                        )
-                      : ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-                          children: [
-                            Text(
-                              "Your Library",
-                              style: GoogleFonts.spaceGrotesk(
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
-                                color: textColor,
+                        );
+                      }
+
+                      final likedIds = _lib.likedIds;
+                      final savedIds = _lib.savedIds;
+                      final recentIds = _lib.recentIds;
+
+                      return ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                        children: [
+                          Text(
+                            "Your Library",
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "${likedIds.length} liked • ${savedIds.length} saved • ${playlists.length} playlists",
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 13,
+                              color: subTextColor,
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+                          _buildTabSelector(),
+                          const SizedBox(height: 20),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 260),
+                            child: Container(
+                              key: ValueKey(_tabIndex),
+                              child: _buildTabContent(
+                                likedIds,
+                                savedIds,
+                                recentIds,
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              "${_likedIds.length} liked • ${_savedIds.length} saved • ${playlists.length} playlists",
-                              style: GoogleFonts.spaceGrotesk(
-                                fontSize: 13,
-                                color: subTextColor,
-                              ),
-                            ),
-                            const SizedBox(height: 22),
-                            _buildTabSelector(),
-                            const SizedBox(height: 20),
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 260),
-                              child: Container(
-                                key: ValueKey(_tabIndex),
-                                child: _buildTabContent(),
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ],
             ),
@@ -269,21 +240,25 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  Widget _buildTabContent() {
+  Widget _buildTabContent(
+    Set<String> likedIds,
+    Set<String> savedIds,
+    List<String> recentIds,
+  ) {
     switch (_tabIndex) {
       case 0:
-        return _buildLikedTab();
+        return _buildLikedTab(likedIds);
       case 1:
-        return _buildSavedTab();
+        return _buildSavedTab(savedIds);
       case 2:
         return _buildPlaylistsTab();
       default:
-        return _buildRecentTab();
+        return _buildRecentTab(likedIds, recentIds);
     }
   }
 
-  Widget _buildLikedTab() {
-    final likedSongs = allSongs.where((s) => _likedIds.contains(s.id)).toList();
+  Widget _buildLikedTab(Set<String> likedIds) {
+    final likedSongs = allSongs.where((s) => likedIds.contains(s.id)).toList();
     if (likedSongs.isEmpty) {
       return _emptyState(
         icon: Icons.favorite_border_rounded,
@@ -306,8 +281,8 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  Widget _buildSavedTab() {
-    final savedSongs = allSongs.where((s) => _savedIds.contains(s.id)).toList();
+  Widget _buildSavedTab(Set<String> savedIds) {
+    final savedSongs = allSongs.where((s) => savedIds.contains(s.id)).toList();
     if (savedSongs.isEmpty) {
       return _emptyState(
         icon: Icons.bookmark_border_rounded,
@@ -351,8 +326,8 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  Widget _buildRecentTab() {
-    final recentSongs = _recentIds.map(songById).whereType<Song>().toList();
+  Widget _buildRecentTab(Set<String> likedIds, List<String> recentIds) {
+    final recentSongs = recentIds.map(songById).whereType<Song>().toList();
     if (recentSongs.isEmpty) {
       return _emptyState(
         icon: Icons.history_rounded,
@@ -388,7 +363,7 @@ class _LibraryPageState extends State<LibraryPage> {
           (s) => _SongTile(
             song: s,
             isDarkMode: isDarkMode,
-            isLiked: _likedIds.contains(s.id),
+            isLiked: likedIds.contains(s.id),
             onLikeToggle: () => _toggleLike(s.id),
             onTap: () => _markPlayed(s),
           ),
@@ -533,8 +508,8 @@ class _SongTile extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 // Saved song tile — used by the "Saved" tab. Same layout as _SongTile but
-// shows a bookmark icon (mirrors the save button on Discover) instead of
-// the heart, since "saved" and "liked" are independent states.
+// shows a bookmark icon (mirrors the save button on Discover/Album) instead
+// of the heart, since "saved" and "liked" are independent states.
 // ---------------------------------------------------------------------------
 
 class _SavedSongTile extends StatelessWidget {
@@ -702,15 +677,13 @@ class _PlaylistSheet extends StatefulWidget {
   final Playlist playlist;
   final List<Song> songs;
   final bool isDarkMode;
-  final Set<String> likedIds;
-  final Future<void> Function(String id) onLikeToggle;
+  final void Function(String id) onLikeToggle;
   final Future<void> Function(Song song) onPlay;
 
   const _PlaylistSheet({
     required this.playlist,
     required this.songs,
     required this.isDarkMode,
-    required this.likedIds,
     required this.onLikeToggle,
     required this.onPlay,
   });
@@ -720,24 +693,9 @@ class _PlaylistSheet extends StatefulWidget {
 }
 
 class _PlaylistSheetState extends State<_PlaylistSheet> {
-  late Set<String> _liked;
+  final LibraryState _lib = LibraryState.instance;
 
-  @override
-  void initState() {
-    super.initState();
-    _liked = Set.from(widget.likedIds);
-  }
-
-  Future<void> _toggle(String id) async {
-    setState(() {
-      if (_liked.contains(id)) {
-        _liked.remove(id);
-      } else {
-        _liked.add(id);
-      }
-    });
-    await widget.onLikeToggle(id);
-  }
+  void _toggle(String id) => widget.onLikeToggle(id);
 
   @override
   Widget build(BuildContext context) {
@@ -822,18 +780,23 @@ class _PlaylistSheetState extends State<_PlaylistSheet> {
               const SizedBox(height: 18),
               Flexible(
                 child: SingleChildScrollView(
-                  child: Column(
-                    children: songs
-                        .map(
-                          (s) => _SongTile(
-                            song: s,
-                            isDarkMode: isDarkMode,
-                            isLiked: _liked.contains(s.id),
-                            onLikeToggle: () => _toggle(s.id),
-                            onTap: () => widget.onPlay(s),
-                          ),
-                        )
-                        .toList(),
+                  child: AnimatedBuilder(
+                    animation: _lib,
+                    builder: (context, _) {
+                      return Column(
+                        children: songs
+                            .map(
+                              (s) => _SongTile(
+                                song: s,
+                                isDarkMode: isDarkMode,
+                                isLiked: _lib.isLiked(s.id),
+                                onLikeToggle: () => _toggle(s.id),
+                                onTap: () => widget.onPlay(s),
+                              ),
+                            )
+                            .toList(),
+                      );
+                    },
                   ),
                 ),
               ),

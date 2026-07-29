@@ -253,15 +253,15 @@ class CustomAppBar extends StatelessWidget {
           ),
         ),
 
-        Container(
-          margin: const EdgeInsets.only(top: 5),
-          width: 70,
-          height: 5,
-          decoration: BoxDecoration(
-            color: AppColors.purpleAccent,
-            borderRadius: BorderRadius.circular(20),
-          ),
-        ),
+        // Container(
+        //   margin: const EdgeInsets.only(top: 5),
+        //   width: 70,
+        //   height: 5,
+        //   decoration: BoxDecoration(
+        //     color: AppColors.purpleAccent,
+        //     borderRadius: BorderRadius.circular(20),
+        //   ),
+        // ),
       ],
     );
   }
