@@ -19,9 +19,6 @@ class Album {
   });
 }
 
-/// Builds a Song list for an album, tagging each song's id with the
-/// album id so it stays unique across the whole catalogue and reusing
-/// the album's own gradient for every track.
 List<Song> _tracks(
   String albumId,
   String artist,
@@ -38,10 +35,6 @@ List<Song> _tracks(
   });
 }
 
-// Only two source gradients are used across the whole catalogue — the
-// 1st and 5th entries in AppColors.songPalette — alternating by album
-// index, and each rendered at reduced opacity so covers read as soft
-// tinted glass instead of a solid gradient.
 const double _albumGradientAlpha = 0.18;
 
 List<Color> _p(int albumIndex) {

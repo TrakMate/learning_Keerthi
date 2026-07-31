@@ -23,10 +23,6 @@ class Song {
   });
 }
 
-// (title, artist) pairs — ids + colors are assigned below by cycling
-// AppColors.songPalette. This is the single source of truth for songs
-// across Discover and Library: add a track here and both pages pick it
-// up automatically, using the same stable id.
 const List<(String, String)> _catalogData = [
   ("Midnight Waves", "Chill Mix"),
   ("Solar Drift", "Focus Flow"),

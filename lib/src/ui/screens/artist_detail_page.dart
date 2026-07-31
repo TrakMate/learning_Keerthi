@@ -4,26 +4,48 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:landingpage/src/models/library_state.dart';
 import 'package:landingpage/src/utils/colors.dart';
 import 'package:landingpage/src/models/song_data.dart';
-import 'package:landingpage/src/models/album_data.dart';
-// import 'package:landingpage/src/state/library_state.dart';
+import 'package:landingpage/src/models/artist_data.dart';
+import 'package:landingpage/src/services/artist_photo_service.dart';
 
-class AlbumDetailPage extends StatefulWidget {
-  final String albumId;
+class ArtistDetailPage extends StatefulWidget {
+  final String artistId;
   final bool isDarkMode;
 
-  const AlbumDetailPage({
+  const ArtistDetailPage({
     super.key,
-    required this.albumId,
+    required this.artistId,
     required this.isDarkMode,
   });
 
   @override
-  State<AlbumDetailPage> createState() => _AlbumDetailPageState();
+  State<ArtistDetailPage> createState() => _ArtistDetailPageState();
 }
 
-class _AlbumDetailPageState extends State<AlbumDetailPage> {
-  // Only one track plays at a time within the album view.
+class _ArtistDetailPageState extends State<ArtistDetailPage> {
+  // Only one track plays at a time within the artist view.
   String? _playingSongId;
+  String? _fetchedUrl;
+  bool _fetchDone = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final artist = artistById(widget.artistId);
+    if (artist != null && artist.imageUrl.isEmpty) {
+      _loadPhoto(artist.name);
+    } else {
+      _fetchDone = true;
+    }
+  }
+
+  Future<void> _loadPhoto(String artistName) async {
+    final url = await ArtistPhotoService.fetch(artistName);
+    if (!mounted) return;
+    setState(() {
+      _fetchedUrl = url;
+      _fetchDone = true;
+    });
+  }
 
   void _setPlaying(String songId, bool playing) {
     setState(() => _playingSongId = playing ? songId : null);
@@ -32,13 +54,13 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = widget.isDarkMode;
-    final album = albumById(widget.albumId);
+    final artist = artistById(widget.artistId);
 
-    if (album == null) {
+    if (artist == null) {
       return Scaffold(
         body: Center(
           child: Text(
-            "Album not found",
+            "Artist not found",
             style: GoogleFonts.spaceGrotesk(
               color: AppColors.textPrimary(isDarkMode),
             ),
@@ -103,26 +125,61 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                           width: 120,
                           height: 120,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
+                            shape: BoxShape.circle,
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors: album.colors,
+                              colors: artist.colors,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: album.colors.last.withValues(alpha: 0.4),
+                                color: artist.colors.last.withValues(
+                                  alpha: 0.4,
+                                ),
                                 blurRadius: 22,
                                 offset: const Offset(0, 10),
                               ),
                             ],
                           ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.album_rounded,
-                              color: Colors.white70,
-                              size: 48,
-                            ),
+                          child: ClipOval(
+                            child:
+                                (artist.imageUrl.isNotEmpty
+                                        ? artist.imageUrl
+                                        : _fetchedUrl) !=
+                                    null
+                                ? Image.network(
+                                    artist.imageUrl.isNotEmpty
+                                        ? artist.imageUrl
+                                        : _fetchedUrl!,
+                                    fit: BoxFit.cover,
+                                    width: 120,
+                                    height: 120,
+                                    errorBuilder: (_, __, ___) => const Center(
+                                      child: Icon(
+                                        Icons.person_rounded,
+                                        color: Colors.white70,
+                                        size: 48,
+                                      ),
+                                    ),
+                                  )
+                                : (_fetchDone
+                                      ? const Center(
+                                          child: Icon(
+                                            Icons.person_rounded,
+                                            color: Colors.white70,
+                                            size: 48,
+                                          ),
+                                        )
+                                      : const Center(
+                                          child: SizedBox(
+                                            width: 26,
+                                            height: 26,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white70,
+                                            ),
+                                          ),
+                                        )),
                           ),
                         ),
                         const SizedBox(width: 18),
@@ -131,7 +188,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                "ALBUM",
+                                "ARTIST",
                                 style: GoogleFonts.spaceGrotesk(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
@@ -141,7 +198,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                album.title,
+                                artist.name,
                                 style: GoogleFonts.spaceGrotesk(
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold,
@@ -150,7 +207,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                "${album.artist} • ${album.songs.length} songs",
+                                "${artist.songs.length} songs",
                                 style: GoogleFonts.spaceGrotesk(
                                   fontSize: 13,
                                   color: AppColors.textSecondary(isDarkMode),
@@ -167,10 +224,10 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate((context, index) {
-                      final song = album.songs[index];
+                      final song = artist.songs[index];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: _AlbumSongBar(
+                        child: _ArtistSongBar(
                           isDarkMode: isDarkMode,
                           song: song,
                           trackNumber: index + 1,
@@ -179,7 +236,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                               _setPlaying(song.id, playing),
                         ),
                       );
-                    }, childCount: album.songs.length),
+                    }, childCount: artist.songs.length),
                   ),
                 ),
               ],
@@ -191,14 +248,14 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
   }
 }
 
-class _AlbumSongBar extends StatefulWidget {
+class _ArtistSongBar extends StatefulWidget {
   final bool isDarkMode;
   final Song song;
   final int trackNumber;
   final bool isPlaying;
   final ValueChanged<bool> onPlayingChanged;
 
-  const _AlbumSongBar({
+  const _ArtistSongBar({
     required this.isDarkMode,
     required this.song,
     required this.trackNumber,
@@ -207,18 +264,16 @@ class _AlbumSongBar extends StatefulWidget {
   });
 
   @override
-  State<_AlbumSongBar> createState() => _AlbumSongBarState();
+  State<_ArtistSongBar> createState() => _ArtistSongBarState();
 }
 
-class _AlbumSongBarState extends State<_AlbumSongBar> {
+class _ArtistSongBarState extends State<_ArtistSongBar> {
   final LibraryState _lib = LibraryState.instance;
   double _progress = 0.0;
 
   @override
   void initState() {
     super.initState();
-    // No-op if already loaded elsewhere in the app; safe to call from any
-    // page that might be the first one opened.
     _lib.load();
   }
 
@@ -436,12 +491,6 @@ class _AlbumSongBarState extends State<_AlbumSongBar> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Same add-to-playlist sheet pattern as DiscoverPage — lists the library
-// playlists and saves the tapped song into it via LibraryState, which wraps
-// song_data.dart's addSongToPlaylist and notifies both pages of the change.
-// ---------------------------------------------------------------------------
 
 class _AddToPlaylistSheet extends StatelessWidget {
   final bool isDarkMode;

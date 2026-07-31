@@ -8,20 +8,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:landingpage/src/ui/custom/custom_appbar.dart';
 import 'package:landingpage/src/utils/colors.dart';
 import 'package:landingpage/src/models/song_data.dart';
-// import 'package:landingpage/src/state/library_state.dart';
-
-// Playlist model, the 4 built-in playlists, and playlist storage helpers
-// (songIdsForPlaylist / addSongToPlaylist) live in song_data.dart.
-//
-// Liked / saved / recently-played state, and playlist-add notifications,
-// now flow through LibraryState (state/library_state.dart) instead of this
-// page's own SharedPreferences calls, so anything changed on
-// AlbumDetailPage (or elsewhere) shows up here immediately via
-// AnimatedBuilder — no dependence on didChangeDependencies firing.
-
-// ---------------------------------------------------------------------------
-// LibraryPage
-// ---------------------------------------------------------------------------
 
 class LibraryPage extends StatefulWidget {
   final bool isDarkMode;
@@ -73,15 +59,10 @@ class _LibraryPageState extends State<LibraryPage> {
 
   Future<void> _toggleTheme() async {
     setState(() => isDarkMode = !isDarkMode);
-    // Theme preference stays local to this toggle handler (not part of
-    // LibraryState, which only tracks likes/saves/recent/playlists).
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('isDarkMode', isDarkMode);
   }
 
-  // Resolves the playlist's full song list (built-in + anything added from
-  // Discover's or Album's "Add to playlist" sheet) before opening the
-  // detail sheet.
   Future<void> _openPlaylist(Playlist playlist) async {
     final ids = await songIdsForPlaylist(playlist);
     final songs = ids.map(songById).whereType<Song>().toList();
@@ -90,7 +71,7 @@ class _LibraryPageState extends State<LibraryPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _PlaylistSheet(
+      builder: (ctx) => PlaylistSheet(
         playlist: playlist,
         songs: songs,
         isDarkMode: isDarkMode,
@@ -269,7 +250,7 @@ class _LibraryPageState extends State<LibraryPage> {
     return Column(
       children: likedSongs
           .map(
-            (s) => _SongTile(
+            (s) => SongTile(
               song: s,
               isDarkMode: isDarkMode,
               isLiked: true,
@@ -317,7 +298,7 @@ class _LibraryPageState extends State<LibraryPage> {
       ),
       itemBuilder: (context, i) {
         final playlist = playlists[i];
-        return _PlaylistCard(
+        return PlaylistCard(
           playlist: playlist,
           isDarkMode: isDarkMode,
           onTap: () => _openPlaylist(playlist),
@@ -360,7 +341,7 @@ class _LibraryPageState extends State<LibraryPage> {
           ),
         ),
         ...recentSongs.map(
-          (s) => _SongTile(
+          (s) => SongTile(
             song: s,
             isDarkMode: isDarkMode,
             isLiked: likedIds.contains(s.id),
@@ -406,18 +387,16 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Song tile — used by Liked, Recent, and inside the playlist sheet.
-// ---------------------------------------------------------------------------
-
-class _SongTile extends StatelessWidget {
+/// Public so it can be reused outside LibraryPage (e.g. the appbar playlist menu).
+class SongTile extends StatelessWidget {
   final Song song;
   final bool isDarkMode;
   final bool isLiked;
   final VoidCallback onLikeToggle;
   final VoidCallback onTap;
 
-  const _SongTile({
+  const SongTile({
+    super.key,
     required this.song,
     required this.isDarkMode,
     required this.isLiked,
@@ -505,12 +484,6 @@ class _SongTile extends StatelessWidget {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Saved song tile — used by the "Saved" tab. Same layout as _SongTile but
-// shows a bookmark icon (mirrors the save button on Discover/Album) instead
-// of the heart, since "saved" and "liked" are independent states.
-// ---------------------------------------------------------------------------
 
 class _SavedSongTile extends StatelessWidget {
   final Song song;
@@ -602,19 +575,23 @@ class _SavedSongTile extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Playlist card (grid) + detail sheet
-// ---------------------------------------------------------------------------
-
-class _PlaylistCard extends StatelessWidget {
+/// Public so it can be reused outside LibraryPage (e.g. the appbar playlist menu).
+class PlaylistCard extends StatelessWidget {
   final Playlist playlist;
   final bool isDarkMode;
   final VoidCallback onTap;
 
-  const _PlaylistCard({
+  /// Optional background photo (asset path). When provided, this replaces
+  /// the playlist's gradient background with the photo (plus a dark scrim
+  /// for text legibility). When null, the original gradient look is used.
+  final String? backgroundImage;
+
+  const PlaylistCard({
+    super.key,
     required this.playlist,
     required this.isDarkMode,
     required this.onTap,
+    this.backgroundImage,
   });
 
   @override
@@ -624,11 +601,23 @@ class _PlaylistCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(22),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: playlist.gradient,
-          ),
+          gradient: backgroundImage == null
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: playlist.gradient,
+                )
+              : null,
+          image: backgroundImage != null
+              ? DecorationImage(
+                  image: AssetImage(backgroundImage!),
+                  fit: BoxFit.cover,
+                  colorFilter: ColorFilter.mode(
+                    Colors.black.withValues(alpha: 0.28),
+                    BlendMode.darken,
+                  ),
+                )
+              : null,
           boxShadow: [
             BoxShadow(
               color: playlist.gradient.first.withValues(alpha: 0.35),
@@ -673,14 +662,16 @@ class _PlaylistCard extends StatelessWidget {
   }
 }
 
-class _PlaylistSheet extends StatefulWidget {
+/// Public so it can be reused outside LibraryPage (e.g. the appbar playlist menu).
+class PlaylistSheet extends StatefulWidget {
   final Playlist playlist;
   final List<Song> songs;
   final bool isDarkMode;
   final void Function(String id) onLikeToggle;
   final Future<void> Function(Song song) onPlay;
 
-  const _PlaylistSheet({
+  const PlaylistSheet({
+    super.key,
     required this.playlist,
     required this.songs,
     required this.isDarkMode,
@@ -689,10 +680,10 @@ class _PlaylistSheet extends StatefulWidget {
   });
 
   @override
-  State<_PlaylistSheet> createState() => _PlaylistSheetState();
+  State<PlaylistSheet> createState() => _PlaylistSheetState();
 }
 
-class _PlaylistSheetState extends State<_PlaylistSheet> {
+class _PlaylistSheetState extends State<PlaylistSheet> {
   final LibraryState _lib = LibraryState.instance;
 
   void _toggle(String id) => widget.onLikeToggle(id);
@@ -786,7 +777,7 @@ class _PlaylistSheetState extends State<_PlaylistSheet> {
                       return Column(
                         children: songs
                             .map(
-                              (s) => _SongTile(
+                              (s) => SongTile(
                                 song: s,
                                 isDarkMode: isDarkMode,
                                 isLiked: _lib.isLiked(s.id),
