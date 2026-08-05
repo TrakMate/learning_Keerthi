@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:landingpage/src/utils/colors.dart';
 
-/// Shared prefs keys — Discover writes to these when a song is
-/// liked/saved/played, Library reads from them. Keep these in sync across
-/// the app; nothing else should hardcode these strings.
 const String likedSongIdsKey = 'liked_song_ids';
 const String recentlyPlayedIdsKey = 'recently_played_ids';
 const String savedSongIdsKey = 'saved_song_ids';
@@ -63,12 +60,6 @@ Song? songById(String id) {
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Playlists — shared between Discover (add-to-playlist) and Library
-// (Playlists tab). Base membership is fixed here; anything the user adds
-// via "Add to playlist" is layered on top, stored in SharedPreferences.
-// ---------------------------------------------------------------------------
-
 class Playlist {
   final String id;
   final String title;
@@ -125,21 +116,16 @@ const List<Playlist> playlists = [
 String _playlistExtraSongsKey(String playlistId) =>
     'playlist_extra_songs_$playlistId';
 
-/// Song ids the user has added to [playlistId] via "Add to playlist",
-/// on top of that playlist's built-in songIds.
 Future<List<String>> extraSongIdsForPlaylist(String playlistId) async {
   final prefs = await SharedPreferences.getInstance();
   return prefs.getStringList(_playlistExtraSongsKey(playlistId)) ?? [];
 }
 
-/// All song ids for a playlist (built-in + user-added), de-duplicated.
 Future<List<String>> songIdsForPlaylist(Playlist playlist) async {
   final extra = await extraSongIdsForPlaylist(playlist.id);
   return {...playlist.songIds, ...extra}.toList();
 }
 
-/// Adds [songId] to [playlistId]. Returns false if it was already there
-/// (either built-in or previously added), true if it was newly added.
 Future<bool> addSongToPlaylist(String playlistId, String songId) async {
   final playlist = playlists.firstWhere((p) => p.id == playlistId);
   if (playlist.songIds.contains(songId)) return false;

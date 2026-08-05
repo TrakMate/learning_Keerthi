@@ -8,142 +8,144 @@ import 'package:landingpage/src/ui/custom/custom_appbar.dart';
 // import 'package:landingpage/src/ui/library_page.dart'; // PlaylistSheet, PlaylistCard
 import 'package:landingpage/src/ui/screens/library.dart';
 import 'package:landingpage/src/ui/widgets/lyric_ticker.dart';
+import 'package:landingpage/src/utils/app_theme.dart';
 import 'package:landingpage/src/utils/colors.dart';
 
 class PlaylistMenuPage extends StatefulWidget {
-  final bool isDarkMode;
-  const PlaylistMenuPage({super.key, required this.isDarkMode});
+  const PlaylistMenuPage({super.key, required bool isDarkMode});
 
   @override
   State<PlaylistMenuPage> createState() => _PlaylistMenuPageState();
 }
 
 class _PlaylistMenuPageState extends State<PlaylistMenuPage> {
-  late bool isDarkMode;
-
   @override
   void initState() {
     super.initState();
-    isDarkMode = true; // default theme for this page
+    AppTheme.instance.load();
   }
 
-  Future<void> _toggleTheme() async {
-    setState(() => isDarkMode = !isDarkMode);
-  }
+  Future<void> _toggleTheme() => AppTheme.instance.toggleDark();
 
   Future<void> _openPlaylist(Playlist playlist) =>
-      openPlaylistSheet(context, playlist, isDarkMode);
+      openPlaylistSheet(context, playlist, AppTheme.instance.isDarkMode);
 
   @override
   Widget build(BuildContext context) {
-    final textColor = AppColors.textPrimary(isDarkMode);
-    final subTextColor = AppColors.textSecondary(isDarkMode);
+    return AnimatedBuilder(
+      animation: AppTheme.instance,
+      builder: (context, _) {
+        final isDarkMode = AppTheme.instance.isDarkMode;
+        final textColor = AppColors.textPrimary(isDarkMode);
+        final subTextColor = AppColors.textSecondary(isDarkMode);
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: isDarkMode
-                    ? AppColors.backgroundDarkAlt
-                    : AppColors.backgroundLightAlt,
+        return Scaffold(
+          body: Stack(
+            children: [
+              Container(
+                width: double.infinity,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isDarkMode
+                        ? AppColors.backgroundDarkAlt
+                        : AppColors.backgroundLightAlt,
+                  ),
+                ),
               ),
-            ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                CustomAppBar(
-                  isDarkMode: !isDarkMode,
-                  showLoginButton: false,
-                  activePage: "Playlist",
-                  onToggleTheme: _toggleTheme,
-                  leading: IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(
-                      Icons.arrow_back_rounded,
-                      color: AppColors.textPrimary(isDarkMode),
+              SafeArea(
+                child: Column(
+                  children: [
+                    CustomAppBar(
+                      isDarkMode: !isDarkMode,
+                      showLoginButton: false,
+                      activePage: "Playlist",
+                      onToggleTheme: _toggleTheme,
+                      leading: IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Icon(
+                          Icons.arrow_back_rounded,
+                          color: AppColors.textPrimary(isDarkMode),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-                    children: [
-                      Text(
-                        "Playlists",
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "${playlists.length} playlists",
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 13,
-                          color: subTextColor,
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      if (playlists.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 70),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.queue_music_rounded,
-                                size: 46,
-                                color: AppColors.textFaint(isDarkMode),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                "No playlists yet",
-                                style: GoogleFonts.spaceGrotesk(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary(isDarkMode),
-                                ),
-                              ),
-                            ],
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                        children: [
+                          Text(
+                            "Playlists",
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
+                            ),
                           ),
-                        )
-                      else
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: playlists.length,
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                mainAxisSpacing: 14,
-                                crossAxisSpacing: 14,
-                                childAspectRatio: 1.8,
+                          const SizedBox(height: 4),
+                          Text(
+                            "${playlists.length} playlists",
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 13,
+                              color: subTextColor,
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+                          if (playlists.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 70),
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.queue_music_rounded,
+                                    size: 46,
+                                    color: AppColors.textFaint(isDarkMode),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    "No playlists yet",
+                                    style: GoogleFonts.spaceGrotesk(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.textPrimary(isDarkMode),
+                                    ),
+                                  ),
+                                ],
                               ),
-                          itemBuilder: (context, i) {
-                            final playlist = playlists[i];
-                            return _PlaylistCardWithLyrics(
-                              playlist: playlist,
-                              isDarkMode: isDarkMode,
-                              cardIndex: i,
-                              onTap: () => _openPlaylist(playlist),
-                            );
-                          },
-                        ),
-                    ],
-                  ),
+                            )
+                          else
+                            GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: playlists.length,
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    mainAxisSpacing: 14,
+                                    crossAxisSpacing: 14,
+                                    childAspectRatio: 1.8,
+                                  ),
+                              itemBuilder: (context, i) {
+                                final playlist = playlists[i];
+                                return _PlaylistCardWithLyrics(
+                                  playlist: playlist,
+                                  isDarkMode: isDarkMode,
+                                  cardIndex: i,
+                                  onTap: () => _openPlaylist(playlist),
+                                );
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -161,8 +163,6 @@ class _PlaylistCardWithLyrics extends StatelessWidget {
     required this.onTap,
   });
 
-  // The 4 uploaded photos, cycled per card by index.
-  // Make sure these are added to assets/images/ and registered in pubspec.yaml.
   static const List<String> _cardBackgrounds = [
     'assets/images/con2.png',
     'assets/images/con3.png',
@@ -191,7 +191,7 @@ class _PlaylistCardWithLyrics extends StatelessWidget {
             top: 0,
             left: 0,
             right: 0,
-            bottom: 58, // keep the ticker clear of the bottom title text
+            bottom: 58,
             child: IgnorePointer(
               child: Center(
                 child: Padding(

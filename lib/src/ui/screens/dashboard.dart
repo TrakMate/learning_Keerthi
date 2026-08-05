@@ -2,13 +2,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
-// import 'package:landingpage/appbar/custom_appbar.dart';
 import 'package:landingpage/src/ui/custom/custom_appbar.dart';
 import 'package:landingpage/src/utils/colors.dart';
-// import 'package:landingpage/util/colors.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-// import '../../appbar/custom_appbar.dart';
+import 'package:landingpage/src/utils/app_theme.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -18,29 +14,10 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  bool isDarkMode = true;
   @override
   void initState() {
     super.initState();
-    _loadThemePreference();
-  }
-
-  Future<void> _loadThemePreference() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() {
-      isDarkMode = prefs.getBool('isDarkMode') ?? true;
-    });
-  }
-
-  Future<void> _saveThemePreference(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkMode', value);
-  }
-
-  void _toggleTheme() {
-    setState(() => isDarkMode = !isDarkMode);
-    _saveThemePreference(isDarkMode);
+    AppTheme.instance.load();
   }
 
   int selectedCategoryIndex = 0;
@@ -48,9 +25,9 @@ class _DashboardPageState extends State<DashboardPage> {
   final TextEditingController _searchController = TextEditingController();
 
   final List<String> categories = const [
-    "Music Poppular",
-    "Playlist",
-    "Liked",
+    "Poppular Music",
+    // "Playlist",
+    // "Liked",
     "Pop Punk",
     "Viral Music",
     "Indie Music",
@@ -135,16 +112,26 @@ class _DashboardPageState extends State<DashboardPage> {
     super.dispose();
   }
 
-  void _openCategory(BuildContext context, String label) {
+  void _openCategory(
+    BuildContext context,
+    String label, {
+    List<Color>? colors,
+    IconData? icon,
+  }) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _CategoryPage(isDarkMode: isDarkMode, category: label),
+        builder: (_) => _CategoryPage(
+          isDarkMode: AppTheme.instance.isDarkMode,
+          category: label,
+          accentColors: colors,
+          accentIcon: icon,
+        ),
       ),
     );
   }
 
-  List<Widget> _buildMusicRows(BuildContext context) {
+  List<Widget> _buildMusicRows(BuildContext context, bool isDarkMode) {
     final cards = _filteredMusicCards;
     if (cards.isEmpty) {
       return [
@@ -178,7 +165,12 @@ class _DashboardPageState extends State<DashboardPage> {
                 isDarkMode: isDarkMode,
                 data: first,
                 height: 210,
-                onTap: () => _openCategory(context, first["title"] as String),
+                onTap: () => _openCategory(
+                  context,
+                  first["title"] as String,
+                  colors: first["colors"] as List<Color>,
+                  icon: first["icon"] as IconData,
+                ),
               ),
             ),
             if (second != null) ...[
@@ -189,8 +181,12 @@ class _DashboardPageState extends State<DashboardPage> {
                   isDarkMode: isDarkMode,
                   data: second,
                   height: 210,
-                  onTap: () =>
-                      _openCategory(context, second["title"] as String),
+                  onTap: () => _openCategory(
+                    context,
+                    second["title"] as String,
+                    colors: second["colors"] as List<Color>,
+                    icon: second["icon"] as IconData,
+                  ),
                 ),
               ),
             ],
@@ -204,118 +200,124 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
     final user = FirebaseAuth.instance.currentUser;
     final displayName = (user?.displayName?.isNotEmpty ?? false)
         ? user!.displayName!
         : (user?.email?.split("@").first ?? "Listener");
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDarkMode
-                      ? AppColors.backgroundDark
-                      : AppColors.backgroundLight,
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                CustomAppBar(
-                  isDarkMode: !isDarkMode,
-                  showLoginButton: false,
-                  onToggleTheme: _toggleTheme,
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.only(top: 25, bottom: 40),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: size.width * 0.9),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _WelcomeCard(
-                              isDarkMode: isDarkMode,
-                              name: displayName,
-                            ),
-                            const SizedBox(height: 28),
+    return AnimatedBuilder(
+      animation: AppTheme.instance,
+      builder: (context, _) {
+        final bool isDarkMode = AppTheme.instance.isDarkMode;
+        final size = MediaQuery.of(context).size;
 
-                            //  search bar — filters chips + cards live
-                            _SearchBar(
-                              isDarkMode: isDarkMode,
-                              controller: _searchController,
-                              onChanged: (value) {
-                                setState(() => searchQuery = value);
-                              },
-                            ),
-                            const SizedBox(height: 18),
-
-                            // category pills — each one navigates on tap
-                            SizedBox(
-                              height: 42,
-                              child: _filteredCategories.isEmpty
-                                  ? Center(
-                                      child: Text(
-                                        "No categories match",
-                                        style: GoogleFonts.spaceGrotesk(
-                                          fontSize: 13,
-                                          color: AppColors.textMuted(
-                                            isDarkMode,
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                  : ListView.separated(
-                                      scrollDirection: Axis.horizontal,
-                                      itemCount: _filteredCategories.length,
-                                      separatorBuilder: (_, __) =>
-                                          const SizedBox(width: 10),
-                                      itemBuilder: (context, index) {
-                                        final label =
-                                            _filteredCategories[index];
-                                        final originalIndex = categories
-                                            .indexOf(label);
-                                        return _CategoryChip(
-                                          isDarkMode: isDarkMode,
-                                          label: label,
-                                          selected:
-                                              originalIndex ==
-                                              selectedCategoryIndex,
-                                          onTap: () {
-                                            setState(
-                                              () => selectedCategoryIndex =
-                                                  originalIndex,
-                                            );
-                                            _openCategory(context, label);
-                                          },
-                                        );
-                                      },
-                                    ),
-                            ),
-                            const SizedBox(height: 30),
-
-                            //  music card grid — filters + navigates on tap
-                            ..._buildMusicRows(context),
-                          ],
-                        ),
-                      ),
+        return Scaffold(
+          body: Stack(
+            children: [
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: isDarkMode
+                          ? AppColors.backgroundDark
+                          : AppColors.backgroundLight,
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              SafeArea(
+                child: Column(
+                  children: [
+                    CustomAppBar(
+                      isDarkMode: !isDarkMode,
+                      showLoginButton: false,
+                      onToggleTheme: AppTheme.instance.toggleDark,
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.only(top: 25, bottom: 40),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: size.width * 0.9,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _WelcomeCard(
+                                  isDarkMode: isDarkMode,
+                                  name: displayName,
+                                ),
+                                const SizedBox(height: 28),
+
+                                _SearchBar(
+                                  isDarkMode: isDarkMode,
+                                  controller: _searchController,
+                                  onChanged: (value) {
+                                    setState(() => searchQuery = value);
+                                  },
+                                ),
+                                const SizedBox(height: 18),
+
+                                SizedBox(
+                                  height: 42,
+                                  child: _filteredCategories.isEmpty
+                                      ? Center(
+                                          child: Text(
+                                            "No categories match",
+                                            style: GoogleFonts.spaceGrotesk(
+                                              fontSize: 13,
+                                              color: AppColors.textMuted(
+                                                isDarkMode,
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                      : ListView.separated(
+                                          scrollDirection: Axis.horizontal,
+                                          itemCount: _filteredCategories.length,
+                                          separatorBuilder: (_, __) =>
+                                              const SizedBox(width: 10),
+                                          itemBuilder: (context, index) {
+                                            final label =
+                                                _filteredCategories[index];
+                                            final originalIndex = categories
+                                                .indexOf(label);
+                                            return _CategoryChip(
+                                              isDarkMode: isDarkMode,
+                                              label: label,
+                                              selected:
+                                                  originalIndex ==
+                                                  selectedCategoryIndex,
+                                              onTap: () {
+                                                setState(
+                                                  () => selectedCategoryIndex =
+                                                      originalIndex,
+                                                );
+                                                _openCategory(context, label);
+                                              },
+                                            );
+                                          },
+                                        ),
+                                ),
+                                const SizedBox(height: 30),
+
+                                ..._buildMusicRows(context, isDarkMode),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -437,7 +439,6 @@ class _SearchBar extends StatelessWidget {
                   ),
                 ),
               ),
-              // Clear button appears only once there's something typed
               ValueListenableBuilder<TextEditingValue>(
                 valueListenable: controller,
                 builder: (context, value, _) {
@@ -595,8 +596,6 @@ class _MusicCardState extends State<_MusicCard> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Background photo (falls back to the gradient if no
-                  // image is set, or if the asset fails to load).
                   if (imagePath != null)
                     Image.asset(
                       imagePath,
@@ -622,8 +621,6 @@ class _MusicCardState extends State<_MusicCard> {
                       ),
                     ),
 
-                  // Color-tint + darken overlay so text/button stay legible
-                  // over any photo, while keeping the card's palette.
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -705,15 +702,172 @@ class _MusicCardState extends State<_MusicCard> {
   }
 }
 
+/// ---------------------------------------------------------------------
+/// Category detail page
+///
+/// Instead of a static placeholder, this now renders a themed hero header
+/// (accent color / icon inferred from the category or card that was
+/// tapped) plus a real, scrollable track list built in the same
+/// glassmorphism style as the rest of the dashboard.
+/// ---------------------------------------------------------------------
 class _CategoryPage extends StatelessWidget {
   final bool isDarkMode;
   final String category;
+  final List<Color>? accentColors;
+  final IconData? accentIcon;
 
-  const _CategoryPage({required this.isDarkMode, required this.category});
+  const _CategoryPage({
+    required this.isDarkMode,
+    required this.category,
+    this.accentColors,
+    this.accentIcon,
+  });
+
+  // Fallback accent palette used whenever a card/category doesn't carry
+  // its own colors (e.g. the horizontal category chips).
+  static const Map<String, List<Color>> _paletteByKeyword = {
+    "pop punk": AppColors.cardPopPunk,
+    "viral": AppColors.cardViral,
+    "indie": AppColors.cardRelax,
+    "reggae": AppColors.cardNostalgic,
+    "popular": AppColors.cardHitz,
+    "pop": AppColors.cardShakeSpirits,
+  };
+
+  static const Map<String, IconData> _iconByKeyword = {
+    "pop punk": Icons.electric_bolt_rounded,
+    "viral": Icons.trending_up_rounded,
+    "indie": Icons.self_improvement_rounded,
+    "reggae": Icons.album_rounded,
+    "popular": Icons.headphones_rounded,
+    "pop": Icons.graphic_eq_rounded,
+  };
+
+  // Small curated track lists so every category feels distinct.
+  static const Map<String, List<Map<String, String>>> _tracksByKeyword = {
+    "pop punk": [
+      {
+        "title": "Skate Park Sunset",
+        "artist": "The Broken Amps",
+        "duration": "2:58",
+      },
+      {"title": "Basement Anthem", "artist": "Loud Static", "duration": "3:12"},
+      {
+        "title": "Fast Lane Feelings",
+        "artist": "Velocity Kids",
+        "duration": "2:41",
+      },
+      {
+        "title": "Chorus of Chaos",
+        "artist": "Neon Wreckage",
+        "duration": "3:05",
+      },
+      {
+        "title": "Runaway Riot",
+        "artist": "The Broken Amps",
+        "duration": "2:49",
+      },
+      {"title": "Stage Dive", "artist": "Loud Static", "duration": "3:20"},
+    ],
+    "viral": [
+      {"title": "Trending Tonight", "artist": "Echo Bloom", "duration": "2:30"},
+      {"title": "Algorithm Love", "artist": "Pixel Parade", "duration": "2:47"},
+      {
+        "title": "Fifteen Seconds Famous",
+        "artist": "Clout Chaser",
+        "duration": "2:19",
+      },
+      {"title": "On Repeat", "artist": "Echo Bloom", "duration": "3:01"},
+      {"title": "Screen Time", "artist": "Pixel Parade", "duration": "2:55"},
+      {
+        "title": "Everybody's Talking",
+        "artist": "Clout Chaser",
+        "duration": "2:38",
+      },
+    ],
+    "indie": [
+      {"title": "Quiet Streets", "artist": "Paper Moths", "duration": "3:34"},
+      {
+        "title": "Cardigan Weather",
+        "artist": "Slow Static",
+        "duration": "3:11",
+      },
+      {"title": "Attic Light", "artist": "Paper Moths", "duration": "2:58"},
+      {"title": "Wallflower", "artist": "Slow Static", "duration": "3:22"},
+      {"title": "Corner Booth", "artist": "Faded Polaroid", "duration": "3:07"},
+      {
+        "title": "Small Town Sky",
+        "artist": "Faded Polaroid",
+        "duration": "2:44",
+      },
+    ],
+    "reggae": [
+      {"title": "Island Breeze", "artist": "Coral Roots", "duration": "3:45"},
+      {"title": "Sunset Sway", "artist": "Golden Tide", "duration": "3:52"},
+      {"title": "One Love Riddim", "artist": "Coral Roots", "duration": "3:29"},
+      {
+        "title": "Palm Tree Groove",
+        "artist": "Golden Tide",
+        "duration": "3:18",
+      },
+      {"title": "Coastal Vibes", "artist": "Reef Sound", "duration": "3:40"},
+      {"title": "Easy Skanking", "artist": "Reef Sound", "duration": "3:33"},
+    ],
+    "popular": [
+      {
+        "title": "Neon Nights",
+        "artist": "Midnight Circuit",
+        "duration": "3:02",
+      },
+      {"title": "Top of the Chart", "artist": "Aria Vale", "duration": "2:54"},
+      {
+        "title": "City Lights Fade",
+        "artist": "Midnight Circuit",
+        "duration": "3:15",
+      },
+      {
+        "title": "Golden Hour Anthem",
+        "artist": "Aria Vale",
+        "duration": "2:47",
+      },
+      {"title": "Heatwave", "artist": "Sable Rae", "duration": "3:09"},
+      {"title": "Everybody Dance", "artist": "Sable Rae", "duration": "2:58"},
+    ],
+    "pop": [
+      {"title": "Bright Side", "artist": "Willow Grace", "duration": "3:01"},
+      {"title": "Feel It Now", "artist": "Nova Kelsey", "duration": "2:52"},
+      {
+        "title": "Champagne Skies",
+        "artist": "Willow Grace",
+        "duration": "3:07",
+      },
+      {"title": "Take It Slow", "artist": "Nova Kelsey", "duration": "3:14"},
+      {"title": "Electric Heart", "artist": "June Halo", "duration": "2:49"},
+      {"title": "Better With You", "artist": "June Halo", "duration": "3:03"},
+    ],
+  };
+
+  String get _displayTitle => category.replaceAll("\n", " ");
+
+  String get _matchKey {
+    final lower = category.toLowerCase();
+    for (final key in _tracksByKeyword.keys) {
+      if (lower.contains(key)) return key;
+    }
+    return "popular";
+  }
+
+  List<Color> get _colors => accentColors ?? _paletteByKeyword[_matchKey]!;
+
+  IconData get _icon => accentIcon ?? _iconByKeyword[_matchKey]!;
+
+  List<Map<String, String>> get _tracks => _tracksByKeyword[_matchKey]!;
 
   @override
   Widget build(BuildContext context) {
-    final title = category.replaceAll("\n", " ");
+    final colors = _colors;
+    final tracks = _tracks;
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -745,7 +899,7 @@ class _CategoryPage extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        title,
+                        _displayTitle,
                         style: GoogleFonts.spaceGrotesk(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -757,18 +911,282 @@ class _CategoryPage extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: Center(
-                  child: Text(
-                    "Content for \"$title\" goes here",
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 15,
-                      color: AppColors.textSecondary(isDarkMode),
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                  children: [
+                    _CategoryHero(
+                      isDarkMode: isDarkMode,
+                      title: _displayTitle,
+                      subtitle: "${tracks.length} Songs • Curated for you",
+                      icon: _icon,
+                      colors: colors,
                     ),
-                  ),
+                    const SizedBox(height: 26),
+                    Text(
+                      "Tracklist",
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary(isDarkMode),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    ...List.generate(tracks.length, (index) {
+                      final track = tracks[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _TrackTile(
+                          isDarkMode: isDarkMode,
+                          index: index + 1,
+                          title: track["title"]!,
+                          artist: track["artist"]!,
+                          duration: track["duration"]!,
+                          accentColors: colors,
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                behavior: SnackBarBehavior.floating,
+                                backgroundColor: colors.last,
+                                content: Text(
+                                  "Now playing \"${track["title"]}\"",
+                                  style: GoogleFonts.spaceGrotesk(
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    }),
+                  ],
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryHero extends StatelessWidget {
+  final bool isDarkMode;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final List<Color> colors;
+
+  const _CategoryHero({
+    required this.isDarkMode,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(26),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: colors,
+          ),
+          borderRadius: BorderRadius.circular(26),
+          boxShadow: [
+            BoxShadow(
+              color: colors.last.withValues(alpha: 0.35),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(icon, color: Colors.white, size: 30),
+            ),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 13,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                Icons.play_arrow_rounded,
+                color: colors.last,
+                size: 22,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TrackTile extends StatefulWidget {
+  final bool isDarkMode;
+  final int index;
+  final String title;
+  final String artist;
+  final String duration;
+  final List<Color> accentColors;
+  final VoidCallback? onTap;
+
+  const _TrackTile({
+    required this.isDarkMode,
+    required this.index,
+    required this.title,
+    required this.artist,
+    required this.duration,
+    required this.accentColors,
+    this.onTap,
+  });
+
+  @override
+  State<_TrackTile> createState() => _TrackTileState();
+}
+
+class _TrackTileState extends State<_TrackTile> {
+  bool isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => isHovered = true),
+      onExit: (_) => setState(() => isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: isHovered
+                    ? widget.accentColors.last.withValues(alpha: 0.16)
+                    : AppColors.glassSurface(widget.isDarkMode),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isHovered
+                      ? widget.accentColors.last.withValues(alpha: 0.5)
+                      : AppColors.glassBorder(widget.isDarkMode),
+                  width: 1.2,
+                ),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 26,
+                    child: Text(
+                      "${widget.index}",
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textMuted(widget.isDarkMode),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: widget.accentColors,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.music_note_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary(widget.isDarkMode),
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          widget.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 12,
+                            color: AppColors.textSecondary(widget.isDarkMode),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    widget.duration,
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 12,
+                      color: AppColors.textMuted(widget.isDarkMode),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Icon(
+                    Icons.play_circle_fill_rounded,
+                    color: widget.accentColors.last,
+                    size: 26,
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

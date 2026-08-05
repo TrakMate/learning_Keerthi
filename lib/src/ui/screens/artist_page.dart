@@ -3,10 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:landingpage/src/ui/custom/custom_appbar.dart';
 import 'package:landingpage/src/ui/screens/artist_detail_page.dart';
 import 'package:landingpage/src/utils/colors.dart';
+import 'package:landingpage/src/utils/app_theme.dart';
 import 'package:landingpage/src/models/artist_data.dart';
 import 'package:landingpage/src/services/artist_photo_service.dart';
-
-import 'package:shared_preferences/shared_preferences.dart';
 
 class ArtistsPage extends StatefulWidget {
   const ArtistsPage({super.key});
@@ -16,33 +15,15 @@ class ArtistsPage extends StatefulWidget {
 }
 
 class _ArtistsPageState extends State<ArtistsPage> {
-  bool isDarkMode = true;
-
   @override
   void initState() {
     super.initState();
-    _loadThemePreference();
+    // Idempotent: if Settings (or any other page) already loaded the
+    // saved theme this session, this just returns immediately.
+    AppTheme.instance.load();
   }
 
-  Future<void> _loadThemePreference() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() {
-      isDarkMode = prefs.getBool('isDarkMode') ?? true;
-    });
-  }
-
-  Future<void> _saveThemePreference(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkMode', value);
-  }
-
-  void _toggleTheme() {
-    setState(() => isDarkMode = !isDarkMode);
-    _saveThemePreference(isDarkMode);
-  }
-
-  void _openArtist(Artist artist) {
+  void _openArtist(Artist artist, bool isDarkMode) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
@@ -53,65 +34,74 @@ class _ArtistsPageState extends State<ArtistsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final crossAxisCount = width > 1100
-        ? 5
-        : width > 800
-        ? 4
-        : width > 550
-        ? 3
-        : 2;
+    // AnimatedBuilder + AppTheme.instance is what makes this page repaint
+    // the instant the theme changes anywhere in the app — including from
+    // SettingsPage's Appearance tab.
+    return AnimatedBuilder(
+      animation: AppTheme.instance,
+      builder: (context, _) {
+        final bool isDarkMode = AppTheme.instance.isDarkMode;
+        final width = MediaQuery.of(context).size.width;
+        final crossAxisCount = width > 1100
+            ? 5
+            : width > 800
+            ? 4
+            : width > 550
+            ? 3
+            : 2;
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDarkMode
-                      ? AppColors.backgroundDark
-                      : AppColors.backgroundLight,
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                CustomAppBar(
-                  isDarkMode: !isDarkMode,
-                  showLoginButton: false,
-                  activePage: "Artists",
-                  onToggleTheme: _toggleTheme,
-                ),
-                Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
-                    itemCount: allArtists.length,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      crossAxisSpacing: 18,
-                      mainAxisSpacing: 22,
-                      childAspectRatio: 0.78,
+        return Scaffold(
+          body: Stack(
+            children: [
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: isDarkMode
+                          ? AppColors.backgroundDark
+                          : AppColors.backgroundLight,
                     ),
-                    itemBuilder: (context, index) {
-                      final artist = allArtists[index];
-                      return _ArtistCard(
-                        isDarkMode: isDarkMode,
-                        artist: artist,
-                        onTap: () => _openArtist(artist),
-                      );
-                    },
                   ),
                 ),
-              ],
-            ),
+              ),
+              SafeArea(
+                child: Column(
+                  children: [
+                    CustomAppBar(
+                      isDarkMode: !isDarkMode,
+                      showLoginButton: false,
+                      activePage: "Artists",
+                      onToggleTheme: AppTheme.instance.toggleDark,
+                    ),
+                    Expanded(
+                      child: GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+                        itemCount: allArtists.length,
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          crossAxisSpacing: 18,
+                          mainAxisSpacing: 22,
+                          childAspectRatio: 0.78,
+                        ),
+                        itemBuilder: (context, index) {
+                          final artist = allArtists[index];
+                          return _ArtistCard(
+                            isDarkMode: isDarkMode,
+                            artist: artist,
+                            onTap: () => _openArtist(artist, isDarkMode),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

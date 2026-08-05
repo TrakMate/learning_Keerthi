@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+// import 'package:landingpage/src/models/app_theme.dart';
 import 'package:landingpage/src/ui/custom/custom_appbar.dart';
 import 'package:landingpage/src/ui/screens/album_detail_page.dart';
+import 'package:landingpage/src/utils/app_theme.dart';
 import 'package:landingpage/src/utils/colors.dart';
 import 'package:landingpage/src/models/album_data.dart';
-
-// import 'package:landingpage/src/ui/pages/album_detail_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class AlbumsPage extends StatefulWidget {
   const AlbumsPage({super.key});
@@ -16,38 +15,15 @@ class AlbumsPage extends StatefulWidget {
 }
 
 class _AlbumsPageState extends State<AlbumsPage> {
-  bool isDarkMode = true;
-
   @override
   void initState() {
     super.initState();
-    _loadThemePreference();
-  }
-
-  Future<void> _loadThemePreference() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() {
-      isDarkMode = prefs.getBool('isDarkMode') ?? true;
-    });
-  }
-
-  Future<void> _saveThemePreference(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkMode', value);
-  }
-
-  void _toggleTheme() {
-    setState(() => isDarkMode = !isDarkMode);
-    _saveThemePreference(isDarkMode);
+    AppTheme.instance.load();
   }
 
   void _openAlbum(Album album) {
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            AlbumDetailPage(albumId: album.id, isDarkMode: isDarkMode),
-      ),
+      MaterialPageRoute(builder: (_) => AlbumDetailPage(albumId: album.id)),
     );
   }
 
@@ -62,56 +38,63 @@ class _AlbumsPageState extends State<AlbumsPage> {
         ? 3
         : 2;
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDarkMode
-                      ? AppColors.backgroundDark
-                      : AppColors.backgroundLight,
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                CustomAppBar(
-                  isDarkMode: !isDarkMode,
-                  showLoginButton: false,
-                  activePage: "Albums",
-                  onToggleTheme: _toggleTheme,
-                ),
-                Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
-                    itemCount: allAlbums.length,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      crossAxisSpacing: 18,
-                      mainAxisSpacing: 22,
-                      childAspectRatio: 0.78,
+    return AnimatedBuilder(
+      animation: AppTheme.instance,
+      builder: (context, _) {
+        final isDarkMode = AppTheme.instance.isDarkMode;
+
+        return Scaffold(
+          body: Stack(
+            children: [
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: isDarkMode
+                          ? AppColors.backgroundDark
+                          : AppColors.backgroundLight,
                     ),
-                    itemBuilder: (context, index) {
-                      final album = allAlbums[index];
-                      return _AlbumCard(
-                        isDarkMode: isDarkMode,
-                        album: album,
-                        onTap: () => _openAlbum(album),
-                      );
-                    },
                   ),
                 ),
-              ],
-            ),
+              ),
+              SafeArea(
+                child: Column(
+                  children: [
+                    CustomAppBar(
+                      isDarkMode: !isDarkMode,
+                      showLoginButton: false,
+                      activePage: "Albums",
+                      onToggleTheme: AppTheme.instance.toggleDark,
+                    ),
+                    Expanded(
+                      child: GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+                        itemCount: allAlbums.length,
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          crossAxisSpacing: 18,
+                          mainAxisSpacing: 22,
+                          childAspectRatio: 0.78,
+                        ),
+                        itemBuilder: (context, index) {
+                          final album = allAlbums[index];
+                          return _AlbumCard(
+                            isDarkMode: isDarkMode,
+                            album: album,
+                            onTap: () => _openAlbum(album),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -135,28 +118,41 @@ class _AlbumCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: album.colors,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: album.colors.last.withValues(alpha: 0.35),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color.fromARGB(255, 92, 75, 131),
+                        Color.fromARGB(255, 101, 81, 132),
+                      ],
+                    ),
+                    border: Border.all(
+                      color: AppTheme.instance.isDarkMode
+                          ? Colors.white
+                          : Colors.black,
+                      width: 3,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x806D28D9),
+                        blurRadius: 18,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: const Center(
-                child: Icon(
-                  Icons.album_rounded,
-                  color: Colors.white70,
-                  size: 40,
+                  child: const Center(
+                    child: Icon(
+                      Icons.album_rounded,
+                      color: Colors.white70,
+                      size: 40,
+                    ),
+                  ),
                 ),
               ),
             ),

@@ -2,8 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Sets of rotating lyric lines. Add more inner lists if you want more
-/// variety across cards — cardIndex cycles through them with `%`.
 const List<List<String>> lyricSets = [
   [
     "city lights are calling your name",
@@ -31,9 +29,6 @@ const List<List<String>> lyricSets = [
   ],
 ];
 
-/// Animated 3-line lyric ticker (faded prev line / bold current line /
-/// faded next line) that cycles on a timer. `cardIndex` picks which
-/// lyric set to use and staggers the start so cards don't flip in sync.
 class LyricTicker extends StatefulWidget {
   final int cardIndex;
   final bool big;
@@ -52,7 +47,6 @@ class _LyricTickerState extends State<LyricTicker> {
   void initState() {
     super.initState();
     _lines = lyricSets[widget.cardIndex % lyricSets.length];
-    // Stagger the start slightly per card so they don't all flip in sync.
     Future.delayed(Duration(milliseconds: 200 * widget.cardIndex), () {
       if (!mounted) return;
       _timer = Timer.periodic(const Duration(seconds: 2, milliseconds: 200), (

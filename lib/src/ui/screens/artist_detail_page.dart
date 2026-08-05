@@ -1,7 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+// import 'package:landingpage/src/models/app_theme.dart';
 import 'package:landingpage/src/models/library_state.dart';
+import 'package:landingpage/src/utils/app_theme.dart';
 import 'package:landingpage/src/utils/colors.dart';
 import 'package:landingpage/src/models/song_data.dart';
 import 'package:landingpage/src/models/artist_data.dart';
@@ -9,12 +11,11 @@ import 'package:landingpage/src/services/artist_photo_service.dart';
 
 class ArtistDetailPage extends StatefulWidget {
   final String artistId;
-  final bool isDarkMode;
 
   const ArtistDetailPage({
     super.key,
     required this.artistId,
-    required this.isDarkMode,
+    required bool isDarkMode,
   });
 
   @override
@@ -22,7 +23,6 @@ class ArtistDetailPage extends StatefulWidget {
 }
 
 class _ArtistDetailPageState extends State<ArtistDetailPage> {
-  // Only one track plays at a time within the artist view.
   String? _playingSongId;
   String? _fetchedUrl;
   bool _fetchDone = false;
@@ -30,6 +30,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
   @override
   void initState() {
     super.initState();
+    AppTheme.instance.load();
     final artist = artistById(widget.artistId);
     if (artist != null && artist.imageUrl.isEmpty) {
       _loadPhoto(artist.name);
@@ -53,197 +54,207 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = widget.isDarkMode;
     final artist = artistById(widget.artistId);
 
-    if (artist == null) {
-      return Scaffold(
-        body: Center(
-          child: Text(
-            "Artist not found",
-            style: GoogleFonts.spaceGrotesk(
-              color: AppColors.textPrimary(isDarkMode),
-            ),
-          ),
-        ),
-      );
-    }
+    return AnimatedBuilder(
+      animation: AppTheme.instance,
+      builder: (context, _) {
+        final isDarkMode = AppTheme.instance.isDarkMode;
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDarkMode
-                      ? AppColors.backgroundDark
-                      : AppColors.backgroundLight,
+        if (artist == null) {
+          return Scaffold(
+            body: Center(
+              child: Text(
+                "Artist not found",
+                style: GoogleFonts.spaceGrotesk(
+                  color: AppColors.textPrimary(isDarkMode),
                 ),
               ),
             ),
-          ),
-          SafeArea(
-            child: CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-                    child: Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () => Navigator.of(context).maybePop(),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.glassSurface(isDarkMode),
-                              border: Border.all(
-                                color: AppColors.glassBorder(isDarkMode),
-                              ),
-                            ),
-                            child: Icon(
-                              Icons.arrow_back_rounded,
-                              size: 18,
-                              color: AppColors.textPrimary(isDarkMode),
-                            ),
-                          ),
-                        ),
-                      ],
+          );
+        }
+
+        return Scaffold(
+          body: Stack(
+            children: [
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: isDarkMode
+                          ? AppColors.backgroundDark
+                          : AppColors.backgroundLight,
                     ),
                   ),
                 ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Container(
-                          width: 120,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: artist.colors,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: artist.colors.last.withValues(
-                                  alpha: 0.4,
+              ),
+              SafeArea(
+                child: CustomScrollView(
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+                        child: Row(
+                          children: [
+                            GestureDetector(
+                              onTap: () => Navigator.of(context).maybePop(),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.glassSurface(isDarkMode),
+                                  border: Border.all(
+                                    color: AppColors.glassBorder(isDarkMode),
+                                  ),
                                 ),
-                                blurRadius: 22,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                          child: ClipOval(
-                            child:
-                                (artist.imageUrl.isNotEmpty
-                                        ? artist.imageUrl
-                                        : _fetchedUrl) !=
-                                    null
-                                ? Image.network(
-                                    artist.imageUrl.isNotEmpty
-                                        ? artist.imageUrl
-                                        : _fetchedUrl!,
-                                    fit: BoxFit.cover,
-                                    width: 120,
-                                    height: 120,
-                                    errorBuilder: (_, __, ___) => const Center(
-                                      child: Icon(
-                                        Icons.person_rounded,
-                                        color: Colors.white70,
-                                        size: 48,
-                                      ),
-                                    ),
-                                  )
-                                : (_fetchDone
-                                      ? const Center(
-                                          child: Icon(
-                                            Icons.person_rounded,
-                                            color: Colors.white70,
-                                            size: 48,
-                                          ),
-                                        )
-                                      : const Center(
-                                          child: SizedBox(
-                                            width: 26,
-                                            height: 26,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white70,
-                                            ),
-                                          ),
-                                        )),
-                          ),
-                        ),
-                        const SizedBox(width: 18),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "ARTIST",
-                                style: GoogleFonts.spaceGrotesk(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.2,
-                                  color: AppColors.textFaint(isDarkMode),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                artist.name,
-                                style: GoogleFonts.spaceGrotesk(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
+                                child: Icon(
+                                  Icons.arrow_back_rounded,
+                                  size: 18,
                                   color: AppColors.textPrimary(isDarkMode),
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                "${artist.songs.length} songs",
-                                style: GoogleFonts.spaceGrotesk(
-                                  fontSize: 13,
-                                  color: AppColors.textSecondary(isDarkMode),
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final song = artist.songs[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _ArtistSongBar(
-                          isDarkMode: isDarkMode,
-                          song: song,
-                          trackNumber: index + 1,
-                          isPlaying: _playingSongId == song.id,
-                          onPlayingChanged: (playing) =>
-                              _setPlaying(song.id, playing),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Container(
+                              width: 120,
+                              height: 120,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: artist.colors,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: artist.colors.last.withValues(
+                                      alpha: 0.4,
+                                    ),
+                                    blurRadius: 22,
+                                    offset: const Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              child: ClipOval(
+                                child:
+                                    (artist.imageUrl.isNotEmpty
+                                            ? artist.imageUrl
+                                            : _fetchedUrl) !=
+                                        null
+                                    ? Image.network(
+                                        artist.imageUrl.isNotEmpty
+                                            ? artist.imageUrl
+                                            : _fetchedUrl!,
+                                        fit: BoxFit.cover,
+                                        width: 120,
+                                        height: 120,
+                                        errorBuilder: (_, __, ___) =>
+                                            const Center(
+                                              child: Icon(
+                                                Icons.person_rounded,
+                                                color: Colors.white70,
+                                                size: 48,
+                                              ),
+                                            ),
+                                      )
+                                    : (_fetchDone
+                                          ? const Center(
+                                              child: Icon(
+                                                Icons.person_rounded,
+                                                color: Colors.white70,
+                                                size: 48,
+                                              ),
+                                            )
+                                          : const Center(
+                                              child: SizedBox(
+                                                width: 26,
+                                                height: 26,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Colors.white70,
+                                                    ),
+                                              ),
+                                            )),
+                              ),
+                            ),
+                            const SizedBox(width: 18),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "ARTIST",
+                                    style: GoogleFonts.spaceGrotesk(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 1.2,
+                                      color: AppColors.textFaint(isDarkMode),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    artist.name,
+                                    style: GoogleFonts.spaceGrotesk(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary(isDarkMode),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "${artist.songs.length} songs",
+                                    style: GoogleFonts.spaceGrotesk(
+                                      fontSize: 13,
+                                      color: AppColors.textSecondary(
+                                        isDarkMode,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      );
-                    }, childCount: artist.songs.length),
-                  ),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final song = artist.songs[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _ArtistSongBar(
+                              isDarkMode: isDarkMode,
+                              song: song,
+                              trackNumber: index + 1,
+                              isPlaying: _playingSongId == song.id,
+                              onPlayingChanged: (playing) =>
+                                  _setPlaying(song.id, playing),
+                            ),
+                          );
+                        }, childCount: artist.songs.length),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -43,7 +43,6 @@ class ArtistPhotoService {
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
 
-      // A disambiguation page has no usable photo even on a 200 response.
       if (data['type'] == 'disambiguation') {
         debugPrint(
           'ArtistPhotoService: "$artistName" resolved to a disambiguation '

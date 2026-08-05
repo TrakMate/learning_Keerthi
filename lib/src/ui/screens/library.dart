@@ -2,31 +2,32 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:landingpage/src/models/library_state.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:landingpage/src/ui/custom/custom_appbar.dart';
+import 'package:landingpage/src/utils/app_theme.dart';
 import 'package:landingpage/src/utils/colors.dart';
 import 'package:landingpage/src/models/song_data.dart';
 
 class LibraryPage extends StatefulWidget {
-  final bool isDarkMode;
-  const LibraryPage({super.key, required this.isDarkMode});
+  @Deprecated(
+    'LibraryPage now follows AppTheme.instance. This value is ignored.',
+  )
+  final bool? isDarkMode;
+  const LibraryPage({super.key, this.isDarkMode});
 
   @override
   State<LibraryPage> createState() => _LibraryPageState();
 }
 
 class _LibraryPageState extends State<LibraryPage> {
-  late bool isDarkMode;
   int _tabIndex = 0;
   final LibraryState _lib = LibraryState.instance;
 
   @override
   void initState() {
     super.initState();
-    isDarkMode = widget.isDarkMode;
-    // No-op if another page already loaded it.
+    AppTheme.instance.load();
     _lib.load();
   }
 
@@ -38,6 +39,7 @@ class _LibraryPageState extends State<LibraryPage> {
     await _lib.markPlayed(song.id);
 
     if (!mounted) return;
+    final isDarkMode = AppTheme.instance.isDarkMode;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -57,11 +59,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
   Future<void> _clearRecent() => _lib.clearRecent();
 
-  Future<void> _toggleTheme() async {
-    setState(() => isDarkMode = !isDarkMode);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkMode', isDarkMode);
-  }
+  Future<void> _toggleTheme() => AppTheme.instance.toggleDark();
 
   Future<void> _openPlaylist(Playlist playlist) async {
     final ids = await songIdsForPlaylist(playlist);
@@ -74,7 +72,7 @@ class _LibraryPageState extends State<LibraryPage> {
       builder: (ctx) => PlaylistSheet(
         playlist: playlist,
         songs: songs,
-        isDarkMode: isDarkMode,
+        isDarkMode: AppTheme.instance.isDarkMode,
         onLikeToggle: _toggleLike,
         onPlay: _markPlayed,
       ),
@@ -83,99 +81,110 @@ class _LibraryPageState extends State<LibraryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = AppColors.textPrimary(isDarkMode);
-    final subTextColor = AppColors.textSecondary(isDarkMode);
-    final isLoggedOut = FirebaseAuth.instance.currentUser == null;
+    return AnimatedBuilder(
+      animation: AppTheme.instance,
+      builder: (context, _) {
+        final isDarkMode = AppTheme.instance.isDarkMode;
+        final textColor = AppColors.textPrimary(isDarkMode);
+        final subTextColor = AppColors.textSecondary(isDarkMode);
+        final isLoggedOut = FirebaseAuth.instance.currentUser == null;
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: isDarkMode
-                    ? AppColors.backgroundDarkAlt
-                    : AppColors.backgroundLightAlt,
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                CustomAppBar(
-                  isDarkMode: !isDarkMode,
-                  showLoginButton: isLoggedOut,
-                  activePage: "Library",
-                  onToggleTheme: _toggleTheme,
-                ),
-                Expanded(
-                  child: AnimatedBuilder(
-                    animation: _lib,
-                    builder: (context, _) {
-                      if (!_lib.isLoaded) {
-                        return Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.primaryPink,
-                          ),
-                        );
-                      }
-
-                      final likedIds = _lib.likedIds;
-                      final savedIds = _lib.savedIds;
-                      final recentIds = _lib.recentIds;
-
-                      return ListView(
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-                        children: [
-                          Text(
-                            "Your Library",
-                            style: GoogleFonts.spaceGrotesk(
-                              fontSize: 26,
-                              fontWeight: FontWeight.bold,
-                              color: textColor,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "${likedIds.length} liked • ${savedIds.length} saved • ${playlists.length} playlists",
-                            style: GoogleFonts.spaceGrotesk(
-                              fontSize: 13,
-                              color: subTextColor,
-                            ),
-                          ),
-                          const SizedBox(height: 22),
-                          _buildTabSelector(),
-                          const SizedBox(height: 20),
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 260),
-                            child: Container(
-                              key: ValueKey(_tabIndex),
-                              child: _buildTabContent(
-                                likedIds,
-                                savedIds,
-                                recentIds,
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+        return Scaffold(
+          body: Stack(
+            children: [
+              Container(
+                width: double.infinity,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isDarkMode
+                        ? AppColors.backgroundDarkAlt
+                        : AppColors.backgroundLightAlt,
                   ),
                 ),
-              ],
-            ),
+              ),
+              SafeArea(
+                child: Column(
+                  children: [
+                    CustomAppBar(
+                      isDarkMode: !isDarkMode,
+                      showLoginButton: isLoggedOut,
+                      activePage: "Library",
+                      onToggleTheme: _toggleTheme,
+                    ),
+                    Expanded(
+                      child: AnimatedBuilder(
+                        animation: _lib,
+                        builder: (context, _) {
+                          if (!_lib.isLoaded) {
+                            return Center(
+                              child: CircularProgressIndicator(
+                                color: AppTheme.instance.accentColor,
+                              ),
+                            );
+                          }
+
+                          final likedIds = _lib.likedIds;
+                          final savedIds = _lib.savedIds;
+                          final recentIds = _lib.recentIds;
+
+                          return ListView(
+                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                            children: [
+                              Text(
+                                "Your Library",
+                                style: GoogleFonts.spaceGrotesk(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.bold,
+                                  color: textColor,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                "${likedIds.length} liked • ${savedIds.length} saved • ${playlists.length} playlists",
+                                style: GoogleFonts.spaceGrotesk(
+                                  fontSize: 13,
+                                  color: subTextColor,
+                                ),
+                              ),
+                              const SizedBox(height: 22),
+                              _buildTabSelector(isDarkMode),
+                              const SizedBox(height: 20),
+                              AnimatedSwitcher(
+                                duration: AppTheme.instance.animDuration,
+                                child: Container(
+                                  key: ValueKey(_tabIndex),
+                                  child: _buildTabContent(
+                                    isDarkMode,
+                                    likedIds,
+                                    savedIds,
+                                    recentIds,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildTabSelector() {
+  Widget _buildTabSelector(bool isDarkMode) {
     final tabs = ['Liked', 'Saved', 'Playlists', 'Recent'];
+    final accentGradient = AppColors.accentGradient(
+      AppTheme.instance.accentColor,
+    );
+
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -194,12 +203,12 @@ class _LibraryPageState extends State<LibraryPage> {
             child: GestureDetector(
               onTap: () => setState(() => _tabIndex = i),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
+                duration: AppTheme.instance.animDuration,
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(26),
                   gradient: selected
-                      ? const LinearGradient(colors: AppColors.primaryGradient)
+                      ? LinearGradient(colors: accentGradient)
                       : null,
                 ),
                 alignment: Alignment.center,
@@ -222,26 +231,28 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Widget _buildTabContent(
+    bool isDarkMode,
     Set<String> likedIds,
     Set<String> savedIds,
     List<String> recentIds,
   ) {
     switch (_tabIndex) {
       case 0:
-        return _buildLikedTab(likedIds);
+        return _buildLikedTab(isDarkMode, likedIds);
       case 1:
-        return _buildSavedTab(savedIds);
+        return _buildSavedTab(isDarkMode, savedIds);
       case 2:
-        return _buildPlaylistsTab();
+        return _buildPlaylistsTab(isDarkMode);
       default:
-        return _buildRecentTab(likedIds, recentIds);
+        return _buildRecentTab(isDarkMode, likedIds, recentIds);
     }
   }
 
-  Widget _buildLikedTab(Set<String> likedIds) {
+  Widget _buildLikedTab(bool isDarkMode, Set<String> likedIds) {
     final likedSongs = allSongs.where((s) => likedIds.contains(s.id)).toList();
     if (likedSongs.isEmpty) {
       return _emptyState(
+        isDarkMode: isDarkMode,
         icon: Icons.favorite_border_rounded,
         title: "No liked songs yet",
         subtitle: "Tap the heart on any track in Discover to save it here.",
@@ -262,10 +273,11 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  Widget _buildSavedTab(Set<String> savedIds) {
+  Widget _buildSavedTab(bool isDarkMode, Set<String> savedIds) {
     final savedSongs = allSongs.where((s) => savedIds.contains(s.id)).toList();
     if (savedSongs.isEmpty) {
       return _emptyState(
+        isDarkMode: isDarkMode,
         icon: Icons.bookmark_border_rounded,
         title: "No saved songs yet",
         subtitle: "Tap the bookmark on any track in Discover to save it here.",
@@ -285,7 +297,7 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  Widget _buildPlaylistsTab() {
+  Widget _buildPlaylistsTab(bool isDarkMode) {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -307,10 +319,15 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  Widget _buildRecentTab(Set<String> likedIds, List<String> recentIds) {
+  Widget _buildRecentTab(
+    bool isDarkMode,
+    Set<String> likedIds,
+    List<String> recentIds,
+  ) {
     final recentSongs = recentIds.map(songById).whereType<Song>().toList();
     if (recentSongs.isEmpty) {
       return _emptyState(
+        isDarkMode: isDarkMode,
         icon: Icons.history_rounded,
         title: "Nothing played yet",
         subtitle: "Songs you play will show up here.",
@@ -354,6 +371,7 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Widget _emptyState({
+    required bool isDarkMode,
     required IconData icon,
     required String title,
     required String subtitle,
@@ -387,7 +405,6 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 }
 
-/// Public so it can be reused outside LibraryPage (e.g. the appbar playlist menu).
 class SongTile extends StatelessWidget {
   final Song song;
   final bool isDarkMode;
@@ -406,6 +423,7 @@ class SongTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accentColor = AppTheme.instance.accentColor;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -472,7 +490,7 @@ class SongTile extends StatelessWidget {
                       ? Icons.favorite_rounded
                       : Icons.favorite_border_rounded,
                   color: isLiked
-                      ? AppColors.primaryPink
+                      ? accentColor
                       : AppColors.textSecondary(isDarkMode),
                   size: 20,
                 ),
@@ -575,15 +593,11 @@ class _SavedSongTile extends StatelessWidget {
   }
 }
 
-/// Public so it can be reused outside LibraryPage (e.g. the appbar playlist menu).
 class PlaylistCard extends StatelessWidget {
   final Playlist playlist;
   final bool isDarkMode;
   final VoidCallback onTap;
 
-  /// Optional background photo (asset path). When provided, this replaces
-  /// the playlist's gradient background with the photo (plus a dark scrim
-  /// for text legibility). When null, the original gradient look is used.
   final String? backgroundImage;
 
   const PlaylistCard({
@@ -662,7 +676,6 @@ class PlaylistCard extends StatelessWidget {
   }
 }
 
-/// Public so it can be reused outside LibraryPage (e.g. the appbar playlist menu).
 class PlaylistSheet extends StatefulWidget {
   final Playlist playlist;
   final List<Song> songs;

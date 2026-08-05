@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -11,14 +10,15 @@ import 'package:landingpage/src/ui/screens/discover.dart';
 import 'package:landingpage/src/ui/screens/homepage.dart';
 import 'package:landingpage/src/ui/screens/library.dart';
 import 'package:landingpage/src/ui/screens/playlist.dart';
+import 'package:landingpage/src/ui/screens/settings_page.dart';
 // import 'package:landingpage/src/ui/screens/library_page.dart';
 import 'package:landingpage/src/utils/colors.dart';
 
 class CustomAppBar extends StatelessWidget {
   final bool isDarkMode;
   final bool showLoginButton;
-  final bool showMenu; // controls whether the nav menu items render
-  final String activePage; // e.g. "Home", "Discover", "Library", etc.
+  final bool showMenu;
+  final String activePage;
   final VoidCallback onToggleTheme;
   final Widget? leading;
 
@@ -81,7 +81,7 @@ class CustomAppBar extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Image.asset(
-                          'assets/images/glogo.png', // Your logo path
+                          'assets/images/glogo.png',
                           width: 45,
                           height: 45,
                           fit: BoxFit.contain,
@@ -92,10 +92,7 @@ class CustomAppBar extends StatelessWidget {
                         Text(
                           "Lizzen",
                           style: TextStyle(
-                            color: isDarkMode
-                                ? Colors
-                                      .black // Dark mode
-                                : Colors.white, // Light mode
+                            color: isDarkMode ? Colors.black : Colors.white,
                             fontSize: 30,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 1.5,
@@ -214,15 +211,11 @@ class CustomAppBar extends StatelessWidget {
                       const SizedBox(width: 25),
                     ],
 
-                    // --- end menu items ---
-                    // --- theme toggle — always visible, on every page ---
                     const SizedBox(width: 14),
                     _themeToggleButton(),
 
-                    // --- spacing between theme toggle and login/logout button ---
                     const SizedBox(width: 16),
 
-                    // --- Login / User menu — driven by real auth state ---
                     if (isLoggedIn)
                       _UserMenuButton(
                         isDarkMode: isDarkMode,
@@ -230,8 +223,8 @@ class CustomAppBar extends StatelessWidget {
                             currentUser.displayName ??
                             currentUser.email ??
                             "User",
-                        onLogoutTap: (anchor) =>
-                            _confirmLogout(context, isDarkMode, anchor),
+                        onMenuTap: (anchor) =>
+                            _handleUserMenu(context, isDarkMode, anchor),
                       )
                     else if (showLoginButton)
                       ElevatedButton(
@@ -265,10 +258,6 @@ class CustomAppBar extends StatelessWidget {
                           ),
                         ),
                       ),
-
-                    // // --- theme toggle — always visible, on every page ---
-                    // const SizedBox(width: 14),
-                    // _themeToggleButton(),
                   ],
                 ),
               ),
@@ -287,6 +276,54 @@ class CustomAppBar extends StatelessWidget {
         // ),
       ],
     );
+  }
+
+  static Future<void> _handleUserMenu(
+    BuildContext context,
+    bool isDarkMode,
+    Offset anchor,
+  ) async {
+    final String? choice = await showGeneralDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: "dismiss",
+      barrierColor: Colors.black.withOpacity(0.45),
+      transitionDuration: const Duration(milliseconds: 320),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return _UserMenuPopup(isDarkMode: !isDarkMode, anchor: anchor);
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutBack,
+          reverseCurve: Curves.easeIn,
+        );
+        return Opacity(
+          opacity: animation.value.clamp(0.0, 1.0),
+          child: Transform.scale(
+            scale: 0.85 + (0.15 * curved.value),
+            alignment: Alignment.topRight,
+            child: child,
+          ),
+        );
+      },
+    );
+
+    if (!context.mounted || choice == null) return;
+
+    switch (choice) {
+      case 'settings':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SettingsPage(isDarkMode: isDarkMode),
+          ),
+        );
+        break;
+      case 'logout':
+        _confirmLogout(context, isDarkMode, anchor);
+        break;
+    }
   }
 
   static Future<void> _confirmLogout(
@@ -340,7 +377,7 @@ class CustomAppBar extends StatelessWidget {
           onTap: onToggleTheme,
           borderRadius: BorderRadius.circular(10),
           child: Container(
-            width: 60, // Increase to 70 or 80 if you want it longer
+            width: 60,
             height: 35,
             alignment: Alignment.center,
             decoration: BoxDecoration(
@@ -410,21 +447,15 @@ class CustomAppBar extends StatelessWidget {
   }
 }
 
-/// Circular user icon that, on hover, pops open a small glass card showing
-/// the signed-in username and a "Logout" button. Position is computed
-/// directly from the icon's on-screen coordinates via a GlobalKey +
-/// RenderBox, and placed with a plain Positioned widget. Styled with a
-/// solid purple frosted background (instead of white) and a gradient badge
-/// icon poking out of the top, matching the confirm-logout popup's accent.
 class _UserMenuButton extends StatefulWidget {
   final bool isDarkMode;
   final String username;
-  final void Function(Offset anchor) onLogoutTap;
+  final void Function(Offset anchor) onMenuTap;
 
   const _UserMenuButton({
     required this.isDarkMode,
     required this.username,
-    required this.onLogoutTap,
+    required this.onMenuTap,
   });
 
   @override
@@ -433,297 +464,225 @@ class _UserMenuButton extends StatefulWidget {
 
 class _UserMenuButtonState extends State<_UserMenuButton> {
   final GlobalKey _iconKey = GlobalKey();
-  OverlayEntry? _overlayEntry;
-  Timer? _hideTimer;
 
-  /// Bottom-right corner of the user icon, in global (screen) coordinates.
   Offset _iconBottomRightGlobal() {
     final RenderBox box =
         _iconKey.currentContext!.findRenderObject() as RenderBox;
     return box.localToGlobal(Offset(box.size.width, box.size.height));
   }
 
-  void _openMenu() {
-    _hideTimer?.cancel();
-    if (_overlayEntry != null) return;
-    _overlayEntry = _buildOverlayEntry();
-    Overlay.of(context).insert(_overlayEntry!);
-  }
-
-  void _scheduleClose() {
-    _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(milliseconds: 180), _closeMenu);
-  }
-
-  void _closeMenu() {
-    _hideTimer?.cancel();
-    _overlayEntry?.remove();
-    _overlayEntry = null;
-  }
-
-  OverlayEntry _buildOverlayEntry() {
-    const Color accent = Color(0xFFD89AE8);
-
-    final Color cardColor = const Color(0xFF8F789A).withOpacity(0.78);
-
-    final Color borderColor = Colors.white.withOpacity(0.22);
-    const Color textColor = Colors.white;
-
-    // Compute the position once, right before building the overlay.
-    final Offset anchor = _iconBottomRightGlobal();
-    const double cardWidth = 210;
-    const double gap = 10; // vertical distance below the icon
-
-    return OverlayEntry(
-      builder: (context) {
-        return Stack(
-          children: [
-            // Positioned from the RIGHT and TOP edges of the screen, so the
-            // card's top-right corner sits right under the icon's
-            // bottom-right corner.
-            Positioned(
-              right: MediaQuery.of(context).size.width - anchor.dx,
-              top: anchor.dy + gap,
-              child: MouseRegion(
-                onEnter: (_) => _hideTimer?.cancel(),
-                onExit: (_) => _scheduleClose(),
-                child: SizedBox(
-                  width: cardWidth,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Main glass card — frosted blur, purple fill, soft
-                      // accent border, purple-tinted shadow.
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                          child: Container(
-                            margin: const EdgeInsets.only(top: 18),
-                            padding: const EdgeInsets.fromLTRB(14, 26, 14, 14),
-                            decoration: BoxDecoration(
-                              color: cardColor,
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: borderColor,
-                                width: 1.4,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.28),
-                                  blurRadius: 30,
-                                  spreadRadius: 1,
-                                  offset: const Offset(0, 14),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  widget.username,
-                                  textAlign: TextAlign.center,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.spaceGrotesk(
-                                    color: textColor,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 15,
-                                    letterSpacing: 0.3,
-                                    decoration: TextDecoration.none,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                SizedBox(
-                                  height: 32,
-                                  child: ElevatedButton.icon(
-                                    onPressed: () {
-                                      final Offset logoutAnchor =
-                                          _iconBottomRightGlobal();
-                                      _closeMenu();
-                                      widget.onLogoutTap(logoutAnchor);
-                                    },
-                                    icon: const Icon(
-                                      Icons.logout_rounded,
-                                      size: 14,
-                                      color: Colors.white,
-                                    ),
-                                    label: Text(
-                                      //loggggggggggggggggggg
-                                      "Logout",
-                                      style: GoogleFonts.spaceGrotesk(
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.black,
-                                        fontSize: 12,
-                                        decoration: TextDecoration.none,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white,
-                                      foregroundColor: Colors.black,
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                          child: Container(
-                            margin: const EdgeInsets.only(top: 26),
-                            padding: const EdgeInsets.fromLTRB(18, 34, 18, 20),
-                            decoration: BoxDecoration(
-                              color: cardColor,
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: borderColor,
-                                width: 1.4,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: accent.withOpacity(0.35),
-                                  blurRadius: 30,
-                                  spreadRadius: 2,
-                                  offset: const Offset(0, 12),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  widget.username,
-                                  textAlign: TextAlign.center,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.spaceGrotesk(
-                                    color: textColor,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    decoration: TextDecoration.none,
-                                  ),
-                                ),
-
-                                const SizedBox(height: 22),
-
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-                                    onPressed: () {
-                                      final Offset logoutAnchor =
-                                          _iconBottomRightGlobal();
-                                      _closeMenu();
-                                      widget.onLogoutTap(logoutAnchor);
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: widget.isDarkMode
-                                          ? Colors.white
-                                          : const Color(0xFF6A1B9A),
-                                      foregroundColor: widget.isDarkMode
-                                          ? Colors.black
-                                          : Colors.white,
-                                      elevation: 0,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 10,
-                                        horizontal: 4,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      "Logout",
-                                      style: GoogleFonts.spaceGrotesk(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12,
-                                        decoration: TextDecoration.none,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      // Gradient badge icon poking out the top, aligned to
-                      // the right so it sits under the user icon.
-                      Positioned(
-                        right: 12,
-                        top: 0,
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [Color(0xFFD89AE8), Color(0xFFC67AD8)],
-                            ),
-                            border: Border.all(
-                              color: widget.isDarkMode
-                                  ? Colors.black
-                                  : Colors.white,
-                              width: 2.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: accent.withOpacity(0.55),
-                                blurRadius: 14,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.person_rounded,
-                            color: Colors.black,
-                            size: 16,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: widget.username,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => widget.onMenuTap(_iconBottomRightGlobal()),
+        child: Container(
+          key: _iconKey,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: widget.isDarkMode ? AppColors.deepPurple : Colors.white,
+          ),
+          child: Icon(
+            Icons.person_rounded,
+            color: widget.isDarkMode ? Colors.white : AppColors.deepPurple,
+            size: 20,
+          ),
+        ),
+      ),
     );
   }
+}
 
-  @override
-  void dispose() {
-    _hideTimer?.cancel();
-    _overlayEntry?.remove();
-    super.dispose();
-  }
+class _UserMenuPopup extends StatelessWidget {
+  final bool isDarkMode;
+  final Offset anchor;
+
+  const _UserMenuPopup({required this.isDarkMode, required this.anchor});
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => _openMenu(),
-      onExit: (_) => _scheduleClose(),
-      child: Container(
-        key: _iconKey,
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: widget.isDarkMode ? AppColors.deepPurple : Colors.white,
-        ),
-        child: Icon(
-          Icons.person_rounded,
-          color: widget.isDarkMode ? Colors.white : AppColors.deepPurple,
-          size: 20,
+    final Color accent = isDarkMode
+        ? AppColors.lavenderAccent
+        : AppColors.deepPurple;
+
+    final Color cardColor = isDarkMode
+        ? Colors.white.withOpacity(0.10)
+        : Colors.white.withOpacity(0.85);
+
+    final Color borderColor = isDarkMode
+        ? Colors.white.withOpacity(0.18)
+        : Colors.black.withOpacity(0.08);
+
+    final Color textColor = isDarkMode ? Colors.white : Colors.black87;
+
+    final Color logoutColor = isDarkMode ? Colors.white : Colors.black;
+
+    const double popupWidth = 220;
+    const double gap = 10;
+    final double screenWidth = MediaQuery.of(context).size.width;
+
+    return Material(
+      type: MaterialType.transparency,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: screenWidth - anchor.dx,
+            top: anchor.dy + gap,
+            child: SizedBox(
+              width: popupWidth,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 26),
+                        padding: const EdgeInsets.fromLTRB(10, 30, 10, 10),
+                        decoration: BoxDecoration(
+                          color: cardColor,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: borderColor, width: 1.4),
+                          boxShadow: [
+                            BoxShadow(
+                              color: accent.withOpacity(0.35),
+                              blurRadius: 30,
+                              spreadRadius: 2,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _menuRow(
+                              context,
+                              icon: Icons.settings_outlined,
+                              label: "Settings",
+                              color: textColor,
+                              onTap: () =>
+                                  Navigator.of(context).pop('settings'),
+                            ),
+                            const SizedBox(height: 8),
+
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(14),
+                                onTap: () =>
+                                    Navigator.of(context).pop('logout'),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 13,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: logoutColor.withOpacity(0.16),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: logoutColor.withOpacity(0.45),
+                                      width: 1.2,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.logout_rounded,
+                                        size: 19,
+                                        color: logoutColor,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        "Logout",
+                                        style: GoogleFonts.spaceGrotesk(
+                                          color: logoutColor,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          decoration: TextDecoration.none,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  Positioned(
+                    right: 12,
+                    top: 0,
+                    child: Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: borderColor, width: 1.4),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withOpacity(0.35),
+                            blurRadius: 30,
+                            spreadRadius: 2,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.person_rounded,
+                        color: isDarkMode
+                            ? const Color.fromARGB(255, 255, 255, 255)
+                            : const Color.fromARGB(255, 0, 0, 0),
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _menuRow(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Row(
+            children: [
+              Icon(icon, size: 19, color: color),
+              const SizedBox(width: 12),
+              Text(
+                label,
+                style: GoogleFonts.spaceGrotesk(
+                  color: color,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.none,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -732,7 +691,7 @@ class _UserMenuButtonState extends State<_UserMenuButton> {
 
 class _LogoutPopup extends StatelessWidget {
   final bool isDarkMode;
-  final Offset anchor; // bottom-right corner of the user icon, in global coords
+  final Offset anchor;
 
   const _LogoutPopup({required this.isDarkMode, required this.anchor});
 
@@ -754,7 +713,7 @@ class _LogoutPopup extends StatelessWidget {
     final Color subTextColor = isDarkMode ? Colors.white70 : Colors.black54;
 
     const double popupWidth = 260;
-    const double gap = 10; // vertical distance below the icon
+    const double gap = 10;
     final double screenWidth = MediaQuery.of(context).size.width;
 
     return Material(
@@ -762,8 +721,6 @@ class _LogoutPopup extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // Positioned from the RIGHT and TOP edges — card's top-right
-          // corner sits right under the icon's bottom-right corner.
           Positioned(
             right: screenWidth - anchor.dx,
             top: anchor.dy + gap,
@@ -772,7 +729,6 @@ class _LogoutPopup extends StatelessWidget {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  // Main glass card
                   ClipRRect(
                     borderRadius: BorderRadius.circular(24),
                     child: BackdropFilter(
@@ -822,7 +778,7 @@ class _LogoutPopup extends StatelessWidget {
 
                             Row(
                               children: [
-                                // CANCEL — outline / ghost style
+                                // CANCEL — outline
                                 Expanded(
                                   child: OutlinedButton(
                                     onPressed: () =>
@@ -854,7 +810,6 @@ class _LogoutPopup extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 8),
 
-                                // CONFIRM — filled accent style
                                 Expanded(
                                   child: ElevatedButton(
                                     onPressed: () =>
@@ -862,9 +817,7 @@ class _LogoutPopup extends StatelessWidget {
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: isDarkMode
                                           ? Colors.white
-                                          : const Color(
-                                              0xFF6A1B9A,
-                                            ), // Purple for light mode
+                                          : const Color(0xFF6A1B9A),
                                       foregroundColor: isDarkMode
                                           ? Colors.black
                                           : Colors.white,
@@ -895,8 +848,6 @@ class _LogoutPopup extends StatelessWidget {
                     ),
                   ),
 
-                  // Badge icon poking out of the top edge, aligned to the
-                  // right so it sits under the user icon.
                   Positioned(
                     right: 12,
                     top: 0,
@@ -918,7 +869,9 @@ class _LogoutPopup extends StatelessWidget {
                       ),
                       child: Icon(
                         Icons.logout_rounded,
-                        color: isDarkMode ? Colors.black : Colors.white,
+                        color: isDarkMode
+                            ? const Color.fromARGB(255, 253, 253, 253)
+                            : const Color.fromARGB(255, 43, 35, 35),
                         size: 24,
                       ),
                     ),

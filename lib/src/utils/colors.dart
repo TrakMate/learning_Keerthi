@@ -3,25 +3,19 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._(); // no instances — static access only
 
-  // ---------------------------------------------------------------------
   // Brand / accent
-  // ---------------------------------------------------------------------
   static const Color primaryPurple = Color(0xFF8B5CF6);
   static const Color primaryPink = Color(0xFFEC4899);
   static const Color deepPurple = Colors.deepPurple;
   static const Color deepPurpleAccent = Colors.deepPurpleAccent;
   static const Color purpleAccent = Colors.purpleAccent;
 
-  /// The soft lavender used for "Forgot password", popup accents, the
-  /// active-tab underline color, etc. (was Color.fromARGB(255, 220, 158, 231))
   static const Color lavenderAccent = Color.fromARGB(255, 220, 158, 231);
 
   static const List<Color> primaryGradient = [primaryPurple, primaryPink];
 
-  // ---------------------------------------------------------------------
   // Background gradients (page-level)
-  // ---------------------------------------------------------------------
-  /// Used by DashboardPage / DiscoverPage.
+  // Used by DashboardPage / DiscoverPage.
   static const List<Color> backgroundDark = [
     Color(0xff0D0714),
     Color(0xff1A0F2E),
@@ -33,7 +27,7 @@ class AppColors {
     Color(0xffF3EEFB),
   ];
 
-  /// Used by HomePage / MusicLayout (main.dart) / CategoryPage.
+  // Used by HomePage / MusicLayout (main.dart) / CategoryPage.
   static const List<Color> backgroundDarkAlt = [
     Color(0xff18071F),
     Color(0xff090814),
@@ -45,17 +39,15 @@ class AppColors {
     Color.fromARGB(255, 202, 195, 225),
   ];
 
-  /// CategoryPage's light variant ends on a slightly different tone.
+  // CategoryPage's light variant ends on a slightly different tone.
   static const List<Color> categoryLightAlt = [
     Color(0xffF8F4FF),
     Color(0xffEEE7FF),
     Color.fromARGB(255, 129, 122, 151),
   ];
 
-  // ---------------------------------------------------------------------
   // Song / feature palette — cycled across Discover's 20 songs, Home's
   // floating notes, and Home's feature grid cards.
-  // ---------------------------------------------------------------------
   static const List<List<Color>> songPalette = [
     [Color(0xFF8B5CF6), Color(0xFFEC4899)], // purple -> pink
     [Color.fromARGB(255, 110, 149, 156), Color(0xFF3B82F6)], // cyan -> blue
@@ -75,9 +67,7 @@ class AppColors {
   static const Color rose = Color(0xFFF43F5E);
   static const Color violet = Color(0xFFA855F7);
 
-  // ---------------------------------------------------------------------
   // Dashboard music-card gradients
-  // ---------------------------------------------------------------------
   static const List<Color> cardHitz = [Color(0xff6C3FC5), Color(0xff8E54E9)];
   static const List<Color> cardRelax = [Color(0xff4B2E83), Color(0xff2D1B4E)];
   static const List<Color> cardPopPunk = [Color(0xffB24BF3), Color(0xff7A2FC9)];
@@ -91,9 +81,7 @@ class AppColors {
   ];
   static const List<Color> cardViral = [Color(0xff3B2168), Color(0xff1E1338)];
 
-  // ---------------------------------------------------------------------
   // Login page gradients (Sign in / Google / Apple buttons)
-  // ---------------------------------------------------------------------
   static const List<Color> loginButtonGradient = [
     Color.fromARGB(255, 102, 52, 133),
     Color.fromARGB(255, 125, 165, 198),
@@ -111,22 +99,14 @@ class AppColors {
     Color.fromARGB(255, 210, 228, 246),
   ];
 
-  /// Apple button's hovered glow tint (dark / light mode).
+  // Apple button's hovered glow tint (dark / light mode).
   static const Color appleGlowDark = Color.fromARGB(255, 227, 120, 246);
   static const Color appleGlowLight = Color.fromARGB(255, 140, 60, 160);
 
-  // ---------------------------------------------------------------------
   // Status colors (success / warning popups)
-  // ---------------------------------------------------------------------
   static const Color successDark = Color.fromARGB(255, 178, 255, 199);
   static const Color successLight = Color(0xff2E7D32);
 
-  // ---------------------------------------------------------------------
-  // Glass-morphism surfaces & text — most of the app's "glass card" look
-  // is just Colors.white/black at varying alpha depending on dark/light
-  // mode. Rather than dozens of near-duplicate constants, use these
-  // helpers so every screen stays consistent and themeable from one spot.
-  // ---------------------------------------------------------------------
   static Color glassSurface(
     bool isDarkMode, {
     double darkAlpha = 0.08,
@@ -145,6 +125,15 @@ class AppColors {
     return isDarkMode
         ? Colors.white.withValues(alpha: darkAlpha)
         : Colors.black.withValues(alpha: lightAlpha);
+  }
+
+  static List<Color> accentGradient(Color accent) {
+    final HSLColor hsl = HSLColor.fromColor(accent);
+    final Color end = hsl
+        .withHue((hsl.hue + 28) % 360)
+        .withLightness((hsl.lightness + 0.14).clamp(0.0, 1.0))
+        .toColor();
+    return [accent, end];
   }
 
   static Color textPrimary(bool isDarkMode) =>

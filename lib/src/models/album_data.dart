@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:landingpage/src/utils/colors.dart';
 import 'package:landingpage/src/models/song_data.dart';
 
-/// An album groups a set of [Song]s under one artist + cover gradient.
 class Album {
   final String id;
   final String title;
@@ -327,7 +326,6 @@ final List<Album> allAlbums = [
   ),
 ];
 
-/// Convenience lookup used by AlbumDetailPage when navigating by id.
 Album? albumById(String id) {
   try {
     return allAlbums.firstWhere((a) => a.id == id);

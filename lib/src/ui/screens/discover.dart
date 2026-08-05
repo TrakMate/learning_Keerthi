@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:landingpage/src/ui/custom/custom_appbar.dart';
 import 'package:landingpage/src/utils/colors.dart';
+import 'package:landingpage/src/utils/app_theme.dart';
 import 'package:landingpage/src/models/song_data.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,12 +15,11 @@ class DiscoverPage extends StatefulWidget {
 }
 
 class _DiscoverPageState extends State<DiscoverPage> {
-  bool isDarkMode = true;
-
   @override
   void initState() {
     super.initState();
-    _loadThemePreference();
+
+    AppTheme.instance.load();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -27,29 +27,10 @@ class _DiscoverPageState extends State<DiscoverPage> {
     });
   }
 
-  Future<void> _loadThemePreference() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() {
-      isDarkMode = prefs.getBool('isDarkMode') ?? true;
-    });
-  }
-
-  Future<void> _saveThemePreference(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkMode', value);
-  }
-
-  void _toggleTheme() {
-    setState(() => isDarkMode = !isDarkMode);
-    _saveThemePreference(isDarkMode);
-  }
-
-  // ---- search panel state ----
+  // search panel state
   final TextEditingController _searchController = TextEditingController();
-  bool _panelVisible = false; // slides in once, then stays put
-  Song? _searchedSong; // the song matched by the user's search, once submitted
-
+  bool _panelVisible = false;
+  Song? _searchedSong;
   void _onSearchSubmitted(String value) {
     final query = value.trim();
     if (query.isEmpty) return;
@@ -83,73 +64,79 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final panelWidth = size.width * 0.25;
+    return AnimatedBuilder(
+      animation: AppTheme.instance,
+      builder: (context, _) {
+        final bool isDarkMode = AppTheme.instance.isDarkMode;
+        final size = MediaQuery.of(context).size;
+        final panelWidth = size.width * 0.25;
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDarkMode
-                      ? AppColors.backgroundDark
-                      : AppColors.backgroundLight,
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                CustomAppBar(
-                  isDarkMode: !isDarkMode,
-                  showLoginButton: false,
-                  activePage: "Discover",
-                  onToggleTheme: _toggleTheme,
-                ),
-                Expanded(
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: _searchedSong == null
-                            ? _SongBrowseList(
-                                isDarkMode: isDarkMode,
-                                songs: allSongs,
-                                leftInset: panelWidth,
-                              )
-                            : _SearchResultView(
-                                isDarkMode: isDarkMode,
-                                song: _searchedSong!,
-                                leftInset: panelWidth,
-                                onClear: _clearSearch,
-                              ),
-                      ),
-
-                      AnimatedPositioned(
-                        duration: const Duration(milliseconds: 420),
-                        curve: Curves.easeOutCubic,
-                        top: 0,
-                        bottom: 0,
-                        left: _panelVisible ? 0 : -panelWidth,
-                        width: panelWidth,
-                        child: _SearchPanel(
-                          isDarkMode: isDarkMode,
-                          controller: _searchController,
-                          onSubmitted: _onSearchSubmitted,
-                        ),
-                      ),
-                    ],
+        return Scaffold(
+          body: Stack(
+            children: [
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: isDarkMode
+                          ? AppColors.backgroundDark
+                          : AppColors.backgroundLight,
+                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              SafeArea(
+                child: Column(
+                  children: [
+                    CustomAppBar(
+                      isDarkMode: !isDarkMode,
+                      showLoginButton: false,
+                      activePage: "Discover",
+                      onToggleTheme: AppTheme.instance.toggleDark,
+                    ),
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: _searchedSong == null
+                                ? _SongBrowseList(
+                                    isDarkMode: isDarkMode,
+                                    songs: allSongs,
+                                    leftInset: panelWidth,
+                                  )
+                                : _SearchResultView(
+                                    isDarkMode: isDarkMode,
+                                    song: _searchedSong!,
+                                    leftInset: panelWidth,
+                                    onClear: _clearSearch,
+                                  ),
+                          ),
+
+                          AnimatedPositioned(
+                            duration: const Duration(milliseconds: 420),
+                            curve: Curves.easeOutCubic,
+                            top: 0,
+                            bottom: 0,
+                            left: _panelVisible ? 0 : -panelWidth,
+                            width: panelWidth,
+                            child: _SearchPanel(
+                              isDarkMode: isDarkMode,
+                              controller: _searchController,
+                              onSubmitted: _onSearchSubmitted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -390,9 +377,6 @@ class _SongBarState extends State<_SongBar> {
     setState(() => isSaved = saved.contains(widget.song.id));
   }
 
-  // Save/like button — toggles + persists to SharedPreferences so
-  // LibraryPage's "Liked" tab picks it up immediately (they share the
-  // same key + song ids from song_data.dart).
   Future<void> _toggleFavorite() async {
     final prefs = await SharedPreferences.getInstance();
     final liked = (prefs.getStringList(likedSongIdsKey) ?? []).toSet();
@@ -406,8 +390,6 @@ class _SongBarState extends State<_SongBar> {
     await prefs.setStringList(likedSongIdsKey, liked.toList());
   }
 
-  // Bookmark/save button — separate from "liked". Persists to its own
-  // SharedPreferences key so LibraryPage's "Saved" tab can read it.
   Future<void> _toggleSaved() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = (prefs.getStringList(savedSongIdsKey) ?? []).toSet();
@@ -442,8 +424,6 @@ class _SongBarState extends State<_SongBar> {
     );
   }
 
-  // Bonus: playing a track also logs it to "recently played", which
-  // LibraryPage's "Recent" tab reads from the same shared key.
   Future<void> _markPlayed() async {
     final prefs = await SharedPreferences.getInstance();
     final recent = prefs.getStringList(recentlyPlayedIdsKey) ?? [];
@@ -461,8 +441,6 @@ class _SongBarState extends State<_SongBar> {
 
   void _seek(double value) => setState(() => _progress = value.clamp(0.0, 1.0));
 
-  // Opens the "add to playlist" bottom sheet listing the 4 library
-  // playlists; tapping one saves this song into it (song_data.dart).
   void _openAddToPlaylist() {
     showModalBottomSheet(
       context: context,
@@ -538,7 +516,7 @@ class _SongBarState extends State<_SongBar> {
                                 ),
                               ),
                             ),
-                            // --- add to playlist button ---
+                            //  add to playlist button
                             GestureDetector(
                               onTap: _openAddToPlaylist,
                               child: Padding(
@@ -550,7 +528,7 @@ class _SongBarState extends State<_SongBar> {
                                 ),
                               ),
                             ),
-                            // --- save/bookmark button ---
+                            //  save/bookmark button
                             GestureDetector(
                               onTap: _toggleSaved,
                               child: Padding(
@@ -566,7 +544,7 @@ class _SongBarState extends State<_SongBar> {
                                 ),
                               ),
                             ),
-                            // --- like/favorite button ---
+                            // like button
                             GestureDetector(
                               onTap: _toggleFavorite,
                               child: Padding(
@@ -595,7 +573,6 @@ class _SongBarState extends State<_SongBar> {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        // The seek "line" — every song bar has one.
                         SliderTheme(
                           data: SliderTheme.of(context).copyWith(
                             trackHeight: 4,
@@ -653,12 +630,6 @@ class _SongBarState extends State<_SongBar> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Add-to-playlist sheet — lists the 4 library playlists; tapping one saves
-// this song into it via song_data.dart's addSongToPlaylist, which persists
-// to SharedPreferences so LibraryPage's Playlists tab picks it up.
-// ---------------------------------------------------------------------------
 
 class _AddToPlaylistSheet extends StatelessWidget {
   final bool isDarkMode;

@@ -32,10 +32,7 @@ class _LoginPageState extends State<LoginPage> {
   bool obscureLoginPassword = true;
   bool rememberMe = false;
 
-  // THEME STATE — dark mode is default
   bool isDarkMode = true;
-
-  // SIGN IN WITH EMAIL AND PASSWORD
 
   Future<void> signInWithEmail() async {
     if (emailController.text.trim().isEmpty) {
@@ -112,8 +109,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // CREATE USER WITH EMAIL AND PASSWORD
-
   Future<void> registerUser() async {
     if (emailController.text.trim().isEmpty) {
       showMessage("Please enter your email.");
@@ -146,7 +141,6 @@ class _LoginPageState extends State<LoginPage> {
       emailController.clear();
       passwordController.clear();
 
-      // Wait so the popup is visible before navigating away
       await Future.delayed(const Duration(seconds: 2));
 
       if (!mounted) return;
@@ -290,7 +284,6 @@ class _LoginPageState extends State<LoginPage> {
       },
     );
 
-    // Auto-dismiss so callers don't need to manage it manually.
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
         Navigator.of(context, rootNavigator: true).pop();
@@ -374,7 +367,6 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
 
-    // Colors that flip between dark / light mode
     final Color textColor = AppColors.textPrimary(isDarkMode);
     final Color subTextColor = AppColors.textSecondary(isDarkMode);
     final Color dividerColor = AppColors.glassBorder(
@@ -388,7 +380,6 @@ class _LoginPageState extends State<LoginPage> {
     );
 
     return Scaffold(
-      // THEME TOGGLE BUTTON — bottom right corner
       floatingActionButton: FloatingActionButton(
         heroTag: "loginThemeButton",
         mini: true,
@@ -427,7 +418,6 @@ class _LoginPageState extends State<LoginPage> {
 
           Row(
             children: [
-              // --- Headphone image — stays fixed in place, never scrolls ---
               Expanded(
                 flex: 4,
                 child: Center(
@@ -488,10 +478,6 @@ class _LoginPageState extends State<LoginPage> {
                                 : Colors.white,
                             borderRadius: BorderRadius.circular(30),
                           ),
-                          // SingleChildScrollView wraps ONLY the form
-                          // content, so this card scrolls independently
-                          // while the headphone image and MusicWave in
-                          // the sibling Row slots stay put.
                           child: SingleChildScrollView(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -515,108 +501,6 @@ class _LoginPageState extends State<LoginPage> {
                                   ],
                                 ),
                                 const SizedBox(height: 28),
-
-                                // // LINE 2 — Username
-                                // TextField(
-                                //   controller: emailController,
-                                //   keyboardType: TextInputType.emailAddress,
-                                //   style: GoogleFonts.spaceGrotesk(
-                                //     color: textColor,
-                                //     fontSize: 16,
-                                //   ),
-                                //   decoration: InputDecoration(
-                                //     labelText: "Username",
-                                //     floatingLabelBehavior:
-                                //         FloatingLabelBehavior.auto,
-                                //     labelStyle: GoogleFonts.spaceGrotesk(
-                                //       color: textColor,
-                                //       fontSize: 15,
-                                //     ),
-                                //     floatingLabelStyle:
-                                //         GoogleFonts.spaceGrotesk(
-                                //           color: AppColors.purpleAccent,
-                                //           fontSize: 16,
-                                //           fontWeight: FontWeight.w600,
-                                //         ),
-                                //     prefixIcon: Padding(
-                                //       padding: const EdgeInsets.all(12),
-                                //       child: SvgPicture.asset(
-                                //         "images/email.svg",
-                                //         colorFilter: ColorFilter.mode(
-                                //           textColor,
-                                //           BlendMode.srcIn,
-                                //         ),
-                                //         height: 20,
-                                //         width: 20,
-                                //       ),
-                                //     ),
-                                //     filled: true,
-                                //     fillColor: fieldFill,
-                                //     enabledBorder: OutlineInputBorder(
-                                //       borderRadius: BorderRadius.circular(15),
-                                //       borderSide: BorderSide.none,
-                                //     ),
-                                //     focusedBorder: OutlineInputBorder(
-                                //       borderRadius: BorderRadius.circular(15),
-                                //       borderSide: const BorderSide(
-                                //         color: AppColors.lavenderAccent,
-                                //         width: 2,
-                                //       ),
-                                //     ),
-                                //   ),
-                                // ),
-                                // const SizedBox(height: 28),
-
-                                // // LINE 3 — Phone Number
-                                // TextField(
-                                //   controller: emailController,
-                                //   keyboardType: TextInputType.emailAddress,
-                                //   style: GoogleFonts.spaceGrotesk(
-                                //     color: textColor,
-                                //     fontSize: 16,
-                                //   ),
-                                //   decoration: InputDecoration(
-                                //     labelText: "phone Number",
-                                //     floatingLabelBehavior:
-                                //         FloatingLabelBehavior.auto,
-                                //     labelStyle: GoogleFonts.spaceGrotesk(
-                                //       color: textColor,
-                                //       fontSize: 15,
-                                //     ),
-                                //     floatingLabelStyle:
-                                //         GoogleFonts.spaceGrotesk(
-                                //           color: AppColors.purpleAccent,
-                                //           fontSize: 16,
-                                //           fontWeight: FontWeight.w600,
-                                //         ),
-                                //     prefixIcon: Padding(
-                                //       padding: const EdgeInsets.all(12),
-                                //       child: SvgPicture.asset(
-                                //         "images/email.svg",
-                                //         colorFilter: ColorFilter.mode(
-                                //           textColor,
-                                //           BlendMode.srcIn,
-                                //         ),
-                                //         height: 20,
-                                //         width: 20,
-                                //       ),
-                                //     ),
-                                //     filled: true,
-                                //     fillColor: fieldFill,
-                                //     enabledBorder: OutlineInputBorder(
-                                //       borderRadius: BorderRadius.circular(15),
-                                //       borderSide: BorderSide.none,
-                                //     ),
-                                //     focusedBorder: OutlineInputBorder(
-                                //       borderRadius: BorderRadius.circular(15),
-                                //       borderSide: const BorderSide(
-                                //         color: AppColors.lavenderAccent,
-                                //         width: 2,
-                                //       ),
-                                //     ),
-                                //   ),
-                                // ),
-                                // const SizedBox(height: 28),
 
                                 // LINE 4 — Email
                                 TextField(
@@ -1076,9 +960,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-
-// REGISTER POPUP WIDGET — email + password + register button,
-// styled like the app's glass theme.
 
 class _RegisterPopup extends StatefulWidget {
   final TextEditingController emailController;

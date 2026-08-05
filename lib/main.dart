@@ -8,11 +8,6 @@ import 'package:landingpage/src/ui/custom/custom_appbar.dart';
 import 'package:landingpage/src/ui/screens/dashboard.dart';
 import 'package:landingpage/src/utils/colors.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// import 'package:landingpage/util/colors.dart';
-// import 'src/appbar/util/custom_appbar.dart';
-// import 'ui/dashboard/dashboard.dart';
-// import 'package:firebase_core/firebase_core.dart'
-// import 'package:firebase_options/firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,9 +43,9 @@ class AuthGate extends StatelessWidget {
           );
         }
         if (snapshot.hasData) {
-          return const DashboardPage(); // already logged in
+          return const DashboardPage();
         }
-        return const MusicLayout(); // show landing/login flow
+        return const MusicLayout(); //
       },
     );
   }
@@ -158,8 +153,6 @@ class _MusicLayoutState extends State<MusicLayout> {
         child: SafeArea(
           child: Column(
             children: [
-              // FIXED APP BAR — landing page: title + Login button only,
-              // no nav menu (menu only appears once the user is logged in).
               CustomAppBar(
                 isDarkMode: !isDarkMode,
                 showMenu: false,

@@ -8,20 +8,20 @@ import 'package:landingpage/src/forms/login_page.dart';
 import 'package:landingpage/src/ui/custom/custom_appbar.dart';
 // import 'package:landingpage/src/ui/custom/lyric_ticker.dart';
 import 'package:landingpage/src/ui/widgets/lyric_ticker.dart';
+import 'package:landingpage/src/utils/app_theme.dart';
 import 'package:landingpage/src/utils/colors.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class HomePage extends StatefulWidget {
-  final bool isDarkMode;
-  const HomePage({super.key, required this.isDarkMode});
+  @Deprecated('HomePage now follows AppTheme.instance. This value is ignored.')
+  final bool? isDarkMode;
+  const HomePage({super.key, this.isDarkMode});
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
-  late bool isDarkMode;
   late final AnimationController _blobController;
 
   final List<(IconData, String)> moods = const [
@@ -80,7 +80,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    isDarkMode = widget.isDarkMode;
+    AppTheme.instance.load();
     _blobController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 18),
@@ -104,9 +104,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       barrierDismissible: false,
       builder: (dialogContext) {
         return _LoginPromptDialog(
-          isDarkMode: isDarkMode,
+          isDarkMode: AppTheme.instance.isDarkMode,
           onLogin: () async {
-            Navigator.of(dialogContext).pop(); // close the dialog first
+            Navigator.of(dialogContext).pop();
             await _goToLogin();
           },
         );
@@ -123,11 +123,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _checkLoginAndPrompt();
   }
 
-  Future<void> _toggleTheme() async {
-    setState(() => isDarkMode = !isDarkMode);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkMode', isDarkMode);
-  }
+  Future<void> _toggleTheme() => AppTheme.instance.toggleDark();
 
   @override
   void dispose() {
@@ -144,166 +140,171 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = AppColors.textPrimary(isDarkMode);
-    final subTextColor = AppColors.textSecondary(isDarkMode);
-    final isLoggedOut = FirebaseAuth.instance.currentUser == null;
+    return AnimatedBuilder(
+      animation: AppTheme.instance,
+      builder: (context, _) {
+        final isDarkMode = AppTheme.instance.isDarkMode;
+        final textColor = AppColors.textPrimary(isDarkMode);
+        final subTextColor = AppColors.textSecondary(isDarkMode);
+        final isLoggedOut = FirebaseAuth.instance.currentUser == null;
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: isDarkMode
-                    ? AppColors.backgroundDarkAlt
-                    : AppColors.backgroundLightAlt,
-              ),
-            ),
-          ),
-
-          Positioned.fill(
-            child: IgnorePointer(
-              child: AnimatedBuilder(
-                animation: _blobController,
-                builder: (context, _) {
-                  final size = MediaQuery.of(context).size;
-                  final t = _blobController.value; // 0 -> 1 loop
-                  return Stack(
-                    children: _notes.map((note) {
-                      return _FloatingNote(
-                        progress: t,
-                        note: note,
-                        screenSize: size,
-                        isDarkMode: isDarkMode,
-                      );
-                    }).toList(),
-                  );
-                },
-              ),
-            ),
-          ),
-
-          SafeArea(
-            child: Column(
-              children: [
-                CustomAppBar(
-                  isDarkMode: !isDarkMode,
-                  showLoginButton: isLoggedOut,
-                  activePage: "Home",
-                  onToggleTheme: _toggleTheme,
+        return Scaffold(
+          body: Stack(
+            children: [
+              Container(
+                width: double.infinity,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isDarkMode
+                        ? AppColors.backgroundDarkAlt
+                        : AppColors.backgroundLightAlt,
+                  ),
                 ),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: AnimatedBuilder(
+                    animation: _blobController,
+                    builder: (context, _) {
+                      final size = MediaQuery.of(context).size;
+                      final t = _blobController.value; // 0 -> 1 loop
+                      return Stack(
+                        children: _notes.map((note) {
+                          return _FloatingNote(
+                            progress: t,
+                            note: note,
+                            screenSize: size,
+                            isDarkMode: isDarkMode,
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+                ),
+              ),
+
+              SafeArea(
+                child: Column(
+                  children: [
+                    CustomAppBar(
+                      isDarkMode: !isDarkMode,
+                      showLoginButton: isLoggedOut,
+                      activePage: "Home",
+                      onToggleTheme: _toggleTheme,
+                    ),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _greeting,
-                                  style: GoogleFonts.spaceGrotesk(
-                                    fontSize: 15,
-                                    color: subTextColor,
-                                  ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _greeting,
+                                      style: GoogleFonts.spaceGrotesk(
+                                        fontSize: 15,
+                                        color: subTextColor,
+                                      ),
+                                    ),
+                                    Text(
+                                      "What's the vibe today? \u{1F3A7}",
+                                      style: GoogleFonts.spaceGrotesk(
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.bold,
+                                        color: textColor,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  "What's the vibe today? \u{1F3A7}",
-                                  style: GoogleFonts.spaceGrotesk(
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.bold,
-                                    color: textColor,
-                                  ),
-                                ),
-                              ],
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 26),
+
+                          // Mood chips
+                          SizedBox(
+                            height: 46,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: moods.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(width: 10),
+                              itemBuilder: (context, i) {
+                                final (icon, label) = moods[i];
+                                return _MoodChip(
+                                  icon: icon,
+                                  label: label,
+                                  isDarkMode: isDarkMode,
+                                );
+                              },
                             ),
+                          ),
+
+                          const SizedBox(height: 28),
+
+                          // "Now playing" glass banner
+                          _NowPlayingCard(isDarkMode: isDarkMode),
+
+                          const SizedBox(height: 30),
+
+                          Text(
+                            "Jump back in",
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w700,
+                              color: textColor,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: features.length,
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  mainAxisSpacing: 14,
+                                  crossAxisSpacing: 14,
+                                  childAspectRatio: 1.8,
+                                ),
+                            itemBuilder: (context, i) {
+                              final (icon, title, subtitle, colors, image) =
+                                  features[i];
+                              return _FeatureCard(
+                                icon: icon,
+                                title: title,
+                                subtitle: subtitle,
+                                gradientColors: colors,
+                                image: image,
+                                cardIndex: i,
+                                isDarkMode: isDarkMode,
+                              );
+                            },
                           ),
                         ],
                       ),
-
-                      const SizedBox(height: 26),
-
-                      // Mood chips
-                      SizedBox(
-                        height: 46,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: moods.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(width: 10),
-                          itemBuilder: (context, i) {
-                            final (icon, label) = moods[i];
-                            return _MoodChip(
-                              icon: icon,
-                              label: label,
-                              isDarkMode: isDarkMode,
-                            );
-                          },
-                        ),
-                      ),
-
-                      const SizedBox(height: 28),
-
-                      // "Now playing" glass banner
-                      _NowPlayingCard(isDarkMode: isDarkMode),
-
-                      const SizedBox(height: 30),
-
-                      Text(
-                        "Jump back in",
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w700,
-                          color: textColor,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: features.length,
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              mainAxisSpacing: 14,
-                              crossAxisSpacing: 14,
-                              childAspectRatio: 1.8,
-                            ),
-                        itemBuilder: (context, i) {
-                          final (icon, title, subtitle, colors, image) =
-                              features[i];
-                          return _FeatureCard(
-                            icon: icon,
-                            title: title,
-                            subtitle: subtitle,
-                            gradientColors: colors,
-                            image: image,
-                            cardIndex: i,
-                            isDarkMode: isDarkMode,
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
-/// Static definition for one floating note — its lane, size, speed, etc.
 class _NoteSpec {
   final IconData icon;
   final double xFraction;
@@ -444,6 +445,10 @@ class _LoginPromptDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accentGradient = AppColors.accentGradient(
+      AppTheme.instance.accentColor,
+    );
+
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 32),
@@ -478,9 +483,9 @@ class _LoginPromptDialog extends StatelessWidget {
               children: [
                 Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: LinearGradient(colors: AppColors.primaryGradient),
+                    gradient: LinearGradient(colors: accentGradient),
                   ),
                   child: const Icon(
                     Icons.lock_person_rounded,
@@ -525,11 +530,11 @@ class _LoginPromptDialog extends StatelessWidget {
                           ),
                         ),
                     child: Ink(
-                      decoration: const BoxDecoration(
-                        borderRadius: BorderRadius.all(Radius.circular(16)),
-                        gradient: LinearGradient(
-                          colors: AppColors.primaryGradient,
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.all(
+                          Radius.circular(16),
                         ),
+                        gradient: LinearGradient(colors: accentGradient),
                       ),
                       child: Container(
                         alignment: Alignment.center,
@@ -610,15 +615,17 @@ class _MoodChipState extends State<_MoodChip> {
 
   @override
   Widget build(BuildContext context) {
+    final accentGradient = AppColors.accentGradient(
+      AppTheme.instance.accentColor,
+    );
+
     return GestureDetector(
       onTap: () => setState(() => selected = !selected),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: AppTheme.instance.animDuration,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          gradient: selected
-              ? const LinearGradient(colors: AppColors.primaryGradient)
-              : null,
+          gradient: selected ? LinearGradient(colors: accentGradient) : null,
           color: selected
               ? null
               : AppColors.glassSurface(
@@ -677,7 +684,7 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
   bool isPlaying = true;
   bool isFavorited = false;
   int trackIndex = 0;
-  double _progress = 0.42; // user-controlled, 0.0 - 1.0
+  double _progress = 0.42;
 
   final List<(String, String)> _tracks = const [
     ("Midnight Waves", "Chill Mix"),
@@ -708,6 +715,8 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = widget.isDarkMode;
+    final accentColor = AppTheme.instance.accentColor;
+    final accentGradient = AppColors.accentGradient(accentColor);
     final (title, subtitle) = _tracks[trackIndex];
 
     return ClipRRect(
@@ -730,20 +739,16 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
               Row(
                 children: [
                   AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
+                    duration: AppTheme.instance.animDuration,
                     width: 54,
                     height: 54,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
-                      gradient: const LinearGradient(
-                        colors: AppColors.primaryGradient,
-                      ),
+                      gradient: LinearGradient(colors: accentGradient),
                       boxShadow: isPlaying
                           ? [
                               BoxShadow(
-                                color: AppColors.primaryPink.withValues(
-                                  alpha: 0.45,
-                                ),
+                                color: accentColor.withValues(alpha: 0.45),
                                 blurRadius: 16,
                                 spreadRadius: 1,
                               ),
@@ -783,22 +788,20 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
                         SliderTheme(
                           data: SliderTheme.of(context).copyWith(
                             trackHeight: 5,
-                            activeTrackColor: AppColors.primaryPink,
+                            activeTrackColor: accentColor,
                             inactiveTrackColor: AppColors.glassBorder(
                               isDarkMode,
                               darkAlpha: 0.15,
                               lightAlpha: 0.08,
                             ),
-                            thumbColor: AppColors.primaryPink,
+                            thumbColor: accentColor,
                             thumbShape: const RoundSliderThumbShape(
                               enabledThumbRadius: 6,
                             ),
                             overlayShape: const RoundSliderOverlayShape(
                               overlayRadius: 14,
                             ),
-                            overlayColor: AppColors.primaryPink.withValues(
-                              alpha: 0.2,
-                            ),
+                            overlayColor: accentColor.withValues(alpha: 0.2),
                           ),
                           child: Slider(
                             value: _progress,
@@ -828,11 +831,9 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
                     onTap: _togglePlay,
                     child: Container(
                       padding: const EdgeInsets.all(14),
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: AppColors.primaryGradient,
-                        ),
+                        gradient: LinearGradient(colors: accentGradient),
                       ),
                       child: Icon(
                         isPlaying
@@ -855,7 +856,7 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
                         ? Icons.favorite_rounded
                         : Icons.favorite_border_rounded,
                     isDarkMode: isDarkMode,
-                    activeColor: isFavorited ? AppColors.primaryPink : null,
+                    activeColor: isFavorited ? accentColor : null,
                     onTap: _toggleFavorite,
                   ),
                 ],
@@ -886,7 +887,7 @@ class _ControlButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: AppTheme.instance.animDuration,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
@@ -942,7 +943,7 @@ class _FeatureCardState extends State<_FeatureCard> {
       onExit: (_) => setState(() => isHovered = false),
       child: AnimatedScale(
         scale: isHovered ? 1.04 : 1.0,
-        duration: const Duration(milliseconds: 200),
+        duration: AppTheme.instance.animDuration,
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
@@ -965,10 +966,8 @@ class _FeatureCardState extends State<_FeatureCard> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // Background photo
                 Image.asset(widget.image, fit: BoxFit.cover),
 
-                // Gradient scrim so text/icon stay readable over any image
                 DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -984,7 +983,6 @@ class _FeatureCardState extends State<_FeatureCard> {
                   ),
                 ),
 
-                // Subtle tint from the card's own accent color
                 DecoratedBox(
                   decoration: BoxDecoration(
                     color: widget.gradientColors.first.withValues(
@@ -998,7 +996,7 @@ class _FeatureCardState extends State<_FeatureCard> {
                   padding: const EdgeInsets.all(14),
                   child: Stack(
                     children: [
-                      // Icon + title pinned to the top
+                      // Icon + title
                       Row(
                         children: [
                           Container(
@@ -1035,7 +1033,7 @@ class _FeatureCardState extends State<_FeatureCard> {
                         ],
                       ),
 
-                      // Lyric ticker — big, dead center of the card
+                      // Lyric ticker
                       Positioned.fill(
                         child: Center(
                           child: Padding(
