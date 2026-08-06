@@ -52,7 +52,6 @@ class ArtistPhotoService {
         return null;
       }
 
-      // Prefer the higher-res "originalimage" if present, else "thumbnail".
       final original = data['originalimage'] as Map<String, dynamic>?;
       final thumb = data['thumbnail'] as Map<String, dynamic>?;
       final url = (original?['source'] ?? thumb?['source']) as String?;

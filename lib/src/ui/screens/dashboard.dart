@@ -1084,6 +1084,8 @@ class _TrackTile extends StatefulWidget {
 
 class _TrackTileState extends State<_TrackTile> {
   bool isHovered = false;
+  bool isLiked = false;
+  bool isSaved = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1160,12 +1162,33 @@ class _TrackTileState extends State<_TrackTile> {
                         const SizedBox(height: 3),
                         Text(
                           widget.artist,
+
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.spaceGrotesk(
                             fontSize: 12,
                             color: AppColors.textSecondary(widget.isDarkMode),
                           ),
+                        ),
+                        const SizedBox(height: 6),
+
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.graphic_eq_rounded,
+                              color: Colors.greenAccent,
+                              size: 15,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              "Now Playing",
+                              style: GoogleFonts.spaceGrotesk(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.greenAccent,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -1178,11 +1201,161 @@ class _TrackTileState extends State<_TrackTile> {
                       color: AppColors.textMuted(widget.isDarkMode),
                     ),
                   ),
-                  const SizedBox(width: 10),
+
+                  const SizedBox(width: 8),
+
                   Icon(
-                    Icons.play_circle_fill_rounded,
-                    color: widget.accentColors.last,
-                    size: 26,
+                    Icons.graphic_eq_rounded,
+                    color: Colors.greenAccent,
+                    size: 18,
+                  ),
+
+                  const SizedBox(width: 10),
+
+                  IconButton(
+                    tooltip: "Like",
+                    splashRadius: 20,
+                    icon: Icon(
+                      isLiked
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      color: isLiked
+                          ? Colors.red
+                          : AppColors.textMuted(widget.isDarkMode),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        isLiked = !isLiked;
+                      });
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          behavior: SnackBarBehavior.floating,
+                          content: Text(
+                            isLiked
+                                ? "Added to Liked Songs ❤️"
+                                : "Removed from Liked Songs",
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  IconButton(
+                    tooltip: "Save",
+                    splashRadius: 20,
+                    icon: Icon(
+                      isSaved
+                          ? Icons.bookmark_rounded
+                          : Icons.bookmark_border_rounded,
+                      color: isSaved
+                          ? widget.accentColors.last
+                          : AppColors.textMuted(widget.isDarkMode),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        isSaved = !isSaved;
+                      });
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          behavior: SnackBarBehavior.floating,
+                          content: Text(
+                            isSaved
+                                ? "Saved to Library 💾"
+                                : "Removed from Library",
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  PopupMenuButton<String>(
+                    tooltip: "More",
+                    color: widget.isDarkMode ? Colors.white : Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    icon: Icon(
+                      Icons.more_vert_rounded,
+                      color: AppColors.textSecondary(widget.isDarkMode),
+                    ),
+                    onSelected: (value) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          behavior: SnackBarBehavior.floating,
+                          content: Text(value),
+                        ),
+                      );
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: "▶ Playing Now",
+                        child: Text(
+                          "Play Now",
+                          style: TextStyle(
+                            color: widget.isDarkMode
+                                ? Colors.black
+                                : Colors.white,
+                          ),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: "⏭ Added to Queue",
+                        child: Text(
+                          "Play Next",
+                          style: TextStyle(
+                            color: widget.isDarkMode
+                                ? Colors.black
+                                : Colors.white,
+                          ),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: "➕ Added to Playlist",
+                        child: Text(
+                          "Add to Playlist",
+                          style: TextStyle(
+                            color: widget.isDarkMode
+                                ? Colors.black
+                                : Colors.white,
+                          ),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: "👤 Opening Artist",
+                        child: Text(
+                          "View Artist",
+                          style: TextStyle(
+                            color: widget.isDarkMode
+                                ? Colors.black
+                                : Colors.white,
+                          ),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: "💿 Opening Album",
+                        child: Text(
+                          "View Album",
+                          style: TextStyle(
+                            color: widget.isDarkMode
+                                ? Colors.black
+                                : Colors.white,
+                          ),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: "🔗 Share",
+                        child: Text(
+                          "Share",
+                          style: TextStyle(
+                            color: widget.isDarkMode
+                                ? Colors.black
+                                : Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

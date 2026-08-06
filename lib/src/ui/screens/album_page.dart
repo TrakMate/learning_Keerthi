@@ -23,7 +23,12 @@ class _AlbumsPageState extends State<AlbumsPage> {
 
   void _openAlbum(Album album) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => AlbumDetailPage(albumId: album.id)),
+      MaterialPageRoute(
+        // If this doesn't compile: AlbumDetailPage's constructor doesn't
+        // have a parameter literally named `albumId`, or `Album` doesn't
+        // have an `.id` field. Check album_detail_page.dart / album_data.dart.
+        builder: (_) => AlbumDetailPage(albumId: album.id),
+      ),
     );
   }
 
@@ -32,11 +37,7 @@ class _AlbumsPageState extends State<AlbumsPage> {
     final width = MediaQuery.of(context).size.width;
     final crossAxisCount = width > 1100
         ? 5
-        : width > 800
-        ? 4
-        : width > 550
-        ? 3
-        : 2;
+        : (width > 800 ? 4 : (width > 550 ? 3 : 2));
 
     return AnimatedBuilder(
       animation: AppTheme.instance,
@@ -79,6 +80,9 @@ class _AlbumsPageState extends State<AlbumsPage> {
                           childAspectRatio: 0.78,
                         ),
                         itemBuilder: (context, index) {
+                          // If this doesn't compile: `allAlbums` isn't a
+                          // List<Album>, or Album doesn't have the fields
+                          // _AlbumCard reads below (.id, .title, .artist).
                           final album = allAlbums[index];
                           return _AlbumCard(
                             isDarkMode: isDarkMode,
@@ -133,9 +137,10 @@ class _AlbumCard extends StatelessWidget {
                       ],
                     ),
                     border: Border.all(
-                      color: AppTheme.instance.isDarkMode
-                          ? Colors.white
-                          : Colors.black,
+                      // Was reading AppTheme.instance.isDarkMode directly —
+                      // switched to the isDarkMode param this widget
+                      // already receives, so it can't drift out of sync.
+                      color: isDarkMode ? Colors.white : Colors.black,
                       width: 3,
                     ),
                     boxShadow: const [

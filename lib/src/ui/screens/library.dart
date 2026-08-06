@@ -306,7 +306,9 @@ class _LibraryPageState extends State<LibraryPage> {
         crossAxisCount: 2,
         mainAxisSpacing: 14,
         crossAxisSpacing: 14,
-        childAspectRatio: 1.25,
+        // Was 1.25 — higher ratio = shorter cards (this is what actually
+        // controls tile height in a GridView, not a height on the card).
+        childAspectRatio: 1.6,
       ),
       itemBuilder: (context, i) {
         final playlist = playlists[i];
@@ -314,6 +316,7 @@ class _LibraryPageState extends State<LibraryPage> {
           playlist: playlist,
           isDarkMode: isDarkMode,
           onTap: () => _openPlaylist(playlist),
+          backgroundImage: '',
         );
       },
     );
@@ -598,14 +601,12 @@ class PlaylistCard extends StatelessWidget {
   final bool isDarkMode;
   final VoidCallback onTap;
 
-  final String? backgroundImage;
-
   const PlaylistCard({
     super.key,
     required this.playlist,
     required this.isDarkMode,
     required this.onTap,
-    this.backgroundImage,
+    required String backgroundImage,
   });
 
   @override
@@ -615,23 +616,14 @@ class PlaylistCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(22),
-          gradient: backgroundImage == null
-              ? LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: playlist.gradient,
-                )
-              : null,
-          image: backgroundImage != null
-              ? DecorationImage(
-                  image: AssetImage(backgroundImage!),
-                  fit: BoxFit.cover,
-                  colorFilter: ColorFilter.mode(
-                    Colors.black.withValues(alpha: 0.28),
-                    BlendMode.darken,
-                  ),
-                )
-              : null,
+          image: DecorationImage(
+            image: const AssetImage('assets/covers/connn.png'),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+              Colors.black.withValues(alpha: 0.32),
+              BlendMode.darken,
+            ),
+          ),
           boxShadow: [
             BoxShadow(
               color: playlist.gradient.first.withValues(alpha: 0.35),
@@ -713,7 +705,8 @@ class _PlaylistSheetState extends State<PlaylistSheet> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.75,
+            // Was 0.75 — shorter sheet so it doesn't dominate the screen.
+            maxHeight: MediaQuery.of(context).size.height * 0.55,
           ),
           decoration: BoxDecoration(
             color: isDarkMode
@@ -742,18 +735,30 @@ class _PlaylistSheetState extends State<PlaylistSheet> {
               const SizedBox(height: 18),
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: widget.playlist.gradient,
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset(
+                      // Swap this path for your real file once it's in the project,
+                      // e.g. 'assets/covers/chill_mix.jpg'. Also make sure it's declared
+                      // under `assets:` in pubspec.yaml, or Flutter won't find it.
+                      'assets/covers/connn.png',
+                      width: 64,
+                      height: 64,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stack) => Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: widget.playlist.gradient,
+                          ),
+                        ),
+                        child: Icon(
+                          widget.playlist.icon,
+                          color: Colors.white,
+                          size: 26,
+                        ),
                       ),
-                    ),
-                    child: Icon(
-                      widget.playlist.icon,
-                      color: Colors.white,
-                      size: 22,
                     ),
                   ),
                   const SizedBox(width: 14),
