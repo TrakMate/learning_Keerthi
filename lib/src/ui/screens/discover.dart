@@ -5,7 +5,7 @@ import 'package:landingpage/src/ui/custom/custom_appbar.dart';
 import 'package:landingpage/src/utils/colors.dart';
 import 'package:landingpage/src/utils/app_theme.dart';
 import 'package:landingpage/src/models/song_data.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:landingpage/src/models/library_state.dart';
 
 class DiscoverPage extends StatefulWidget {
   const DiscoverPage({super.key});
@@ -20,6 +20,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
     super.initState();
 
     AppTheme.instance.load();
+    LibraryState.instance.load();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -340,6 +341,13 @@ class _SearchResultView extends StatelessWidget {
   }
 }
 
+/// A single song row shown in the Discover page.
+///
+/// Like / Save / "now playing" state is read from and written to
+/// [LibraryState.instance] -- the SAME store [LibraryPage] listens to.
+/// That's what keeps Discover and Library in sync: as soon as a song
+/// is liked or saved here, LibraryState notifies its listeners and the
+/// Library page's Liked/Saved tabs update immediately.
 class _SongBar extends StatefulWidget {
   final bool isDarkMode;
   final Song song;
@@ -351,56 +359,16 @@ class _SongBar extends StatefulWidget {
 }
 
 class _SongBarState extends State<_SongBar> {
+  final LibraryState _lib = LibraryState.instance;
+
   bool isPlaying = false;
-  bool isFavorited = false;
-  bool isSaved = false;
   double _progress = 0.3;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadLikedState();
-    _loadSavedState();
-  }
-
-  Future<void> _loadLikedState() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    final liked = prefs.getStringList(likedSongIdsKey) ?? [];
-    setState(() => isFavorited = liked.contains(widget.song.id));
-  }
-
-  Future<void> _loadSavedState() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    final saved = prefs.getStringList(savedSongIdsKey) ?? [];
-    setState(() => isSaved = saved.contains(widget.song.id));
-  }
-
-  Future<void> _toggleFavorite() async {
-    final prefs = await SharedPreferences.getInstance();
-    final liked = (prefs.getStringList(likedSongIdsKey) ?? []).toSet();
-    final nowFavorited = !isFavorited;
-    setState(() => isFavorited = nowFavorited);
-    if (nowFavorited) {
-      liked.add(widget.song.id);
-    } else {
-      liked.remove(widget.song.id);
-    }
-    await prefs.setStringList(likedSongIdsKey, liked.toList());
-  }
+  Future<void> _toggleFavorite() => _lib.toggleLiked(widget.song.id);
 
   Future<void> _toggleSaved() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = (prefs.getStringList(savedSongIdsKey) ?? []).toSet();
-    final nowSaved = !isSaved;
-    setState(() => isSaved = nowSaved);
-    if (nowSaved) {
-      saved.add(widget.song.id);
-    } else {
-      saved.remove(widget.song.id);
-    }
-    await prefs.setStringList(savedSongIdsKey, saved.toList());
+    await _lib.toggleSaved(widget.song.id);
+    final nowSaved = _lib.savedIds.contains(widget.song.id);
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -424,19 +392,10 @@ class _SongBarState extends State<_SongBar> {
     );
   }
 
-  Future<void> _markPlayed() async {
-    final prefs = await SharedPreferences.getInstance();
-    final recent = prefs.getStringList(recentlyPlayedIdsKey) ?? [];
-    recent.remove(widget.song.id);
-    recent.insert(0, widget.song.id);
-    final capped = recent.length > 25 ? recent.sublist(0, 25) : recent;
-    await prefs.setStringList(recentlyPlayedIdsKey, capped);
-  }
-
   void _togglePlay() {
     final nowPlaying = !isPlaying;
     setState(() => isPlaying = nowPlaying);
-    if (nowPlaying) _markPlayed();
+    if (nowPlaying) _lib.markPlayed(widget.song.id);
   }
 
   void _seek(double value) => setState(() => _progress = value.clamp(0.0, 1.0));
@@ -456,177 +415,192 @@ class _SongBarState extends State<_SongBar> {
     final isDarkMode = widget.isDarkMode;
     final song = widget.song;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(22),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            color: AppColors.glassSurface(isDarkMode),
-            border: Border.all(color: AppColors.glassBorder(isDarkMode)),
-          ),
-          child: Column(
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    // AnimatedBuilder rebuilds this row whenever LibraryState changes,
+    // so the heart / bookmark icons always reflect the current state --
+    // whether it was toggled here or from the Library page.
+    return AnimatedBuilder(
+      animation: _lib,
+      builder: (context, _) {
+        final isFavorited = _lib.likedIds.contains(song.id);
+        final isSaved = _lib.savedIds.contains(song.id);
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                color: AppColors.glassSurface(isDarkMode),
+                border: Border.all(color: AppColors.glassBorder(isDarkMode)),
+              ),
+              child: Column(
                 children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      gradient: LinearGradient(colors: song.colors),
-                      boxShadow: isPlaying
-                          ? [
-                              BoxShadow(
-                                color: song.colors.last.withValues(alpha: 0.45),
-                                blurRadius: 16,
-                                spreadRadius: 1,
-                              ),
-                            ]
-                          : [],
-                    ),
-                    child: Icon(
-                      isPlaying
-                          ? Icons.graphic_eq_rounded
-                          : Icons.music_note_rounded,
-                      color: Colors.white,
-                      size: 26,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          gradient: LinearGradient(colors: song.colors),
+                          boxShadow: isPlaying
+                              ? [
+                                  BoxShadow(
+                                    color: song.colors.last.withValues(
+                                      alpha: 0.45,
+                                    ),
+                                    blurRadius: 16,
+                                    spreadRadius: 1,
+                                  ),
+                                ]
+                              : [],
+                        ),
+                        child: Icon(
+                          isPlaying
+                              ? Icons.graphic_eq_rounded
+                              : Icons.music_note_rounded,
+                          color: Colors.white,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Text(
-                                song.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.spaceGrotesk(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: AppColors.textPrimary(isDarkMode),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.spaceGrotesk(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                      color: AppColors.textPrimary(isDarkMode),
+                                    ),
+                                  ),
                                 ),
+                                // add to playlist button
+                                GestureDetector(
+                                  onTap: _openAddToPlaylist,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(4),
+                                    child: Icon(
+                                      Icons.playlist_add_rounded,
+                                      size: 20,
+                                      color: AppColors.textFaint(isDarkMode),
+                                    ),
+                                  ),
+                                ),
+                                // save/bookmark button
+                                GestureDetector(
+                                  onTap: _toggleSaved,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(4),
+                                    child: Icon(
+                                      isSaved
+                                          ? Icons.bookmark_rounded
+                                          : Icons.bookmark_border_rounded,
+                                      size: 18,
+                                      color: isSaved
+                                          ? song.colors.last
+                                          : AppColors.textFaint(isDarkMode),
+                                    ),
+                                  ),
+                                ),
+                                // like button
+                                GestureDetector(
+                                  onTap: _toggleFavorite,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(4),
+                                    child: Icon(
+                                      isFavorited
+                                          ? Icons.favorite_rounded
+                                          : Icons.favorite_border_rounded,
+                                      size: 18,
+                                      color: isFavorited
+                                          ? song.colors.last
+                                          : AppColors.textFaint(isDarkMode),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              "${isPlaying ? 'Now Playing' : 'Paused'} • ${song.artist}",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.spaceGrotesk(
+                                fontSize: 12,
+                                color: isDarkMode
+                                    ? Colors.white60
+                                    : Colors.black54,
                               ),
                             ),
-                            //  add to playlist button
-                            GestureDetector(
-                              onTap: _openAddToPlaylist,
-                              child: Padding(
-                                padding: const EdgeInsets.all(4),
-                                child: Icon(
-                                  Icons.playlist_add_rounded,
-                                  size: 20,
-                                  color: AppColors.textFaint(isDarkMode),
+                            const SizedBox(height: 2),
+                            SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 4,
+                                activeTrackColor: song.colors.last,
+                                inactiveTrackColor: AppColors.glassBorder(
+                                  isDarkMode,
+                                  darkAlpha: 0.15,
+                                  lightAlpha: 0.08,
+                                ),
+                                thumbColor: song.colors.last,
+                                thumbShape: const RoundSliderThumbShape(
+                                  enabledThumbRadius: 5,
+                                ),
+                                overlayShape: const RoundSliderOverlayShape(
+                                  overlayRadius: 12,
+                                ),
+                                overlayColor: song.colors.last.withValues(
+                                  alpha: 0.2,
                                 ),
                               ),
-                            ),
-                            //  save/bookmark button
-                            GestureDetector(
-                              onTap: _toggleSaved,
-                              child: Padding(
-                                padding: const EdgeInsets.all(4),
-                                child: Icon(
-                                  isSaved
-                                      ? Icons.bookmark_rounded
-                                      : Icons.bookmark_border_rounded,
-                                  size: 18,
-                                  color: isSaved
-                                      ? song.colors.last
-                                      : AppColors.textFaint(isDarkMode),
-                                ),
-                              ),
-                            ),
-                            // like button
-                            GestureDetector(
-                              onTap: _toggleFavorite,
-                              child: Padding(
-                                padding: const EdgeInsets.all(4),
-                                child: Icon(
-                                  isFavorited
-                                      ? Icons.favorite_rounded
-                                      : Icons.favorite_border_rounded,
-                                  size: 18,
-                                  color: isFavorited
-                                      ? song.colors.last
-                                      : AppColors.textFaint(isDarkMode),
-                                ),
+                              child: Slider(
+                                value: _progress,
+                                min: 0.0,
+                                max: 1.0,
+                                onChanged: _seek,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          "${isPlaying ? 'Now Playing' : 'Paused'} • ${song.artist}",
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.spaceGrotesk(
-                            fontSize: 12,
-                            color: isDarkMode ? Colors.white60 : Colors.black54,
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _togglePlay,
+                        child: Container(
+                          padding: const EdgeInsets.all(11),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(colors: song.colors),
+                          ),
+                          child: Icon(
+                            isPlaying
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            color: Colors.white,
+                            size: 20,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        SliderTheme(
-                          data: SliderTheme.of(context).copyWith(
-                            trackHeight: 4,
-                            activeTrackColor: song.colors.last,
-                            inactiveTrackColor: AppColors.glassBorder(
-                              isDarkMode,
-                              darkAlpha: 0.15,
-                              lightAlpha: 0.08,
-                            ),
-                            thumbColor: song.colors.last,
-                            thumbShape: const RoundSliderThumbShape(
-                              enabledThumbRadius: 5,
-                            ),
-                            overlayShape: const RoundSliderOverlayShape(
-                              overlayRadius: 12,
-                            ),
-                            overlayColor: song.colors.last.withValues(
-                              alpha: 0.2,
-                            ),
-                          ),
-                          child: Slider(
-                            value: _progress,
-                            min: 0.0,
-                            max: 1.0,
-                            onChanged: _seek,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: _togglePlay,
-                    child: Container(
-                      padding: const EdgeInsets.all(11),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(colors: song.colors),
                       ),
-                      child: Icon(
-                        isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -639,6 +613,9 @@ class _AddToPlaylistSheet extends StatelessWidget {
 
   Future<void> _add(BuildContext context, Playlist playlist) async {
     final added = await addSongToPlaylist(playlist.id, song.id);
+    // ignore: invalid_use_of_visible_for_testing_member, invalid_use_of_protected_member
+    LibraryState.instance.notifyListeners();
+
     if (!context.mounted) return;
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context).hideCurrentSnackBar();

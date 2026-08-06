@@ -303,12 +303,12 @@ class _LibraryPageState extends State<LibraryPage> {
       physics: const NeverScrollableScrollPhysics(),
       itemCount: playlists.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 14,
-        // Was 1.25 — higher ratio = shorter cards (this is what actually
-        // controls tile height in a GridView, not a height on the card).
-        childAspectRatio: 1.6,
+        crossAxisCount: 3,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+        // Higher ratio = shorter card height. Bump this up further
+        // (e.g. 1.5, 1.6...) if you want them even flatter.
+        childAspectRatio: 1.3,
       ),
       itemBuilder: (context, i) {
         final playlist = playlists[i];
@@ -316,7 +316,6 @@ class _LibraryPageState extends State<LibraryPage> {
           playlist: playlist,
           isDarkMode: isDarkMode,
           onTap: () => _openPlaylist(playlist),
-          backgroundImage: '',
         );
       },
     );
@@ -601,12 +600,17 @@ class PlaylistCard extends StatelessWidget {
   final bool isDarkMode;
   final VoidCallback onTap;
 
+  // Optional per-card cover (e.g. the rotating con2/con3/con4/con5 images
+  // used on the Playlist Menu page). When not provided, every card falls
+  // back to the same connn.png cover.
+  final String? backgroundImage;
+
   const PlaylistCard({
     super.key,
     required this.playlist,
     required this.isDarkMode,
     required this.onTap,
-    required String backgroundImage,
+    this.backgroundImage,
   });
 
   @override
@@ -615,10 +619,12 @@ class PlaylistCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(16),
           image: DecorationImage(
-            image: const AssetImage('assets/covers/connn.png'),
+            image: AssetImage(backgroundImage ?? 'assets/images/connn.png'),
             fit: BoxFit.cover,
+            // Darkens the photo a bit so the white title text stays
+            // readable no matter what the image looks like.
             colorFilter: ColorFilter.mode(
               Colors.black.withValues(alpha: 0.32),
               BlendMode.darken,
@@ -626,38 +632,41 @@ class PlaylistCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: playlist.gradient.first.withValues(alpha: 0.35),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
+              color: playlist.gradient.first.withValues(alpha: 0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
             ),
           ],
         ),
-        padding: const EdgeInsets.all(16),
+        // Tight padding to keep the card short.
+        padding: const EdgeInsets.all(8),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(5),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white.withValues(alpha: 0.22),
               ),
-              child: Icon(playlist.icon, color: Colors.white, size: 18),
+              child: Icon(playlist.icon, color: Colors.white, size: 12),
             ),
             const Spacer(),
             Text(
               playlist.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: GoogleFonts.spaceGrotesk(
                 fontWeight: FontWeight.bold,
-                fontSize: 15,
+                fontSize: 11,
                 color: Colors.white,
               ),
             ),
-            const SizedBox(height: 2),
             Text(
               "${playlist.songIds.length} songs",
               style: GoogleFonts.spaceGrotesk(
-                fontSize: 11,
+                fontSize: 8,
                 color: Colors.white70,
               ),
             ),
