@@ -11,6 +11,7 @@ import 'package:landingpage/src/ui/widgets/glass_container.dart';
 import 'package:landingpage/src/ui/widgets/settings_popup.dart';
 import 'package:landingpage/src/utils/app_theme.dart';
 import 'package:landingpage/src/utils/colors.dart';
+// import 'package:landingpage/src/ui/widgets/update_photo_sheet.dart';
 
 enum _SettingsTab { profile, account, appearance, playback }
 

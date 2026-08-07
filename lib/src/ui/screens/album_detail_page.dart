@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 // import 'package:landingpage/src/models/app_theme.dart';
 import 'package:landingpage/src/models/library_state.dart';
+// import 'package:landingpage/src/ui/custom/album_cover_art.dart';
+import 'package:landingpage/src/ui/custom/artist_cover_art.dart';
 import 'package:landingpage/src/utils/app_theme.dart';
 import 'package:landingpage/src/utils/colors.dart';
 import 'package:landingpage/src/models/song_data.dart';
@@ -104,16 +106,15 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Container(
+                            SizedBox(
                               width: 120,
                               height: 120,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: album.colors,
-                                ),
+                              child: AlbumCoverArt(
+                                albumTitle: album.title,
+                                artistName: album.artist,
+                                gradientColors: album.colors,
+                                borderRadius: 20,
+                                fallbackIconSize: 48,
                                 boxShadow: [
                                   BoxShadow(
                                     color: album.colors.last.withValues(
@@ -123,13 +124,6 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                                     offset: const Offset(0, 10),
                                   ),
                                 ],
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.album_rounded,
-                                  color: Colors.white70,
-                                  size: 48,
-                                ),
                               ),
                             ),
                             const SizedBox(width: 18),

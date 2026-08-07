@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:landingpage/src/utils/colors.dart';
 
 Future<void> showGlassFieldDialog({
@@ -350,6 +351,9 @@ class _AvatarUploadContent extends StatefulWidget {
 
 class _AvatarUploadContentState extends State<_AvatarUploadContent> {
   Uint8List? _preview;
+  String? _error;
+  bool _picking = false;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -357,14 +361,60 @@ class _AvatarUploadContentState extends State<_AvatarUploadContent> {
     _preview = widget.currentImageBytes;
   }
 
-  Future<void> _pickImage() async {}
+  // THIS was the bug — it used to be `Future<void> _pickImage() async {}`,
+  // an empty stub that did nothing when tapped. Now it actually calls the
+  // image_picker plugin to open the OS/browser file picker.
+  Future<void> _pickImage() async {
+    if (_picking) return; // guard against double-taps
+
+    debugPrint('[AvatarUpload] pickImage tapped');
+    setState(() {
+      _picking = true;
+      _error = null;
+    });
+
+    try {
+      final XFile? picked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      debugPrint('[AvatarUpload] picker returned: ${picked?.name}');
+
+      if (picked == null) {
+        // User closed the file dialog without picking anything.
+        if (mounted) setState(() => _picking = false);
+        return;
+      }
+
+      final bytes = await picked.readAsBytes();
+      debugPrint('[AvatarUpload] read ${bytes.length} bytes');
+
+      if (!mounted) return;
+      setState(() {
+        _preview = bytes;
+        _picking = false;
+      });
+    } catch (e, st) {
+      // No ScaffoldMessenger here on purpose — this widget is shown via
+      // showGeneralDialog(), which has no Scaffold ancestor. Calling
+      // ScaffoldMessenger.of(context) in that case throws silently.
+      debugPrint('[AvatarUpload] pickImage failed: $e\n$st');
+      if (!mounted) return;
+      setState(() {
+        _error = 'Could not load that image: $e';
+        _picking = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final Color accent = widget.isDarkMode
         ? AppColors.lavenderAccent
         : AppColors.deepPurple;
-    final Color textColor = widget.isDarkMode ? Colors.white : Colors.black87;
     final Color subTextColor = widget.isDarkMode
         ? Colors.white70
         : Colors.black54;
@@ -400,26 +450,42 @@ class _AvatarUploadContentState extends State<_AvatarUploadContent> {
                   : null,
               border: Border.all(color: accent.withValues(alpha: 0.4)),
             ),
-            child: _preview != null
-                ? ClipOval(
-                    child: Image.memory(
-                      _preview!,
-                      width: 96,
-                      height: 96,
-                      fit: BoxFit.cover,
+            child: _picking
+                ? const Center(
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        color: Colors.white,
+                      ),
                     ),
                   )
-                : const Icon(
-                    Icons.add_a_photo_rounded,
-                    color: Colors.white,
-                    size: 28,
-                  ),
+                : (_preview != null
+                      ? ClipOval(
+                          child: Image.memory(
+                            _preview!,
+                            width: 96,
+                            height: 96,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.add_a_photo_rounded,
+                          color: Colors.white,
+                          size: 28,
+                        )),
           ),
         ),
         const SizedBox(height: 10),
         Text(
-          "Tap to choose a new photo",
-          style: GoogleFonts.spaceGrotesk(color: subTextColor, fontSize: 12),
+          _error ?? "Tap to choose a new photo",
+          textAlign: TextAlign.center,
+          style: GoogleFonts.spaceGrotesk(
+            color: _error != null ? const Color(0xFFE05A5A) : subTextColor,
+            fontSize: 12,
+            decoration: TextDecoration.none,
+          ),
         ),
         const SizedBox(height: 22),
         Row(
@@ -438,7 +504,15 @@ class _AvatarUploadContentState extends State<_AvatarUploadContent> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: Text("Cancel", style: TextStyle(color: subTextColor)),
+                child: Text(
+                  "Cancel",
+                  style: GoogleFonts.spaceGrotesk(
+                    color: subTextColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -461,9 +535,7 @@ class _AvatarUploadContentState extends State<_AvatarUploadContent> {
                   style: GoogleFonts.spaceGrotesk(
                     fontWeight: FontWeight.w700,
                     fontSize: 12.5,
-                    color: textColor == Colors.black87
-                        ? Colors.white
-                        : Colors.white,
+                    color: Colors.white,
                     decoration: TextDecoration.none,
                   ),
                 ),

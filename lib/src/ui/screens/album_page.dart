@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 // import 'package:landingpage/src/models/app_theme.dart';
+// import 'package:landingpage/src/ui/custom/album_cover_art.dart';
+import 'package:landingpage/src/ui/custom/artist_cover_art.dart';
 import 'package:landingpage/src/ui/custom/custom_appbar.dart';
 import 'package:landingpage/src/ui/screens/album_detail_page.dart';
 import 'package:landingpage/src/utils/app_theme.dart';
@@ -125,39 +127,28 @@ class _AlbumCard extends StatelessWidget {
             child: Center(
               child: AspectRatio(
                 aspectRatio: 1,
-                child: Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color.fromARGB(255, 92, 75, 131),
-                        Color.fromARGB(255, 101, 81, 132),
-                      ],
-                    ),
-                    border: Border.all(
-                      // Was reading AppTheme.instance.isDarkMode directly —
-                      // switched to the isDarkMode param this widget
-                      // already receives, so it can't drift out of sync.
-                      color: isDarkMode ? Colors.white : Colors.black,
-                      width: 3,
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x806D28D9),
-                        blurRadius: 18,
-                        offset: Offset(0, 8),
-                      ),
-                    ],
+                child: AlbumCoverArt(
+                  albumTitle: album.title,
+                  artistName: album.artist,
+                  gradientColors: const [
+                    Color.fromARGB(255, 92, 75, 131),
+                    Color.fromARGB(255, 101, 81, 132),
+                  ],
+                  borderRadius: 20,
+                  border: Border.all(
+                    // Was reading AppTheme.instance.isDarkMode directly —
+                    // switched to the isDarkMode param this widget
+                    // already receives, so it can't drift out of sync.
+                    color: isDarkMode ? Colors.white : Colors.black,
+                    width: 3,
                   ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.album_rounded,
-                      color: Colors.white70,
-                      size: 40,
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x806D28D9),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
