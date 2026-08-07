@@ -13,6 +13,58 @@ import 'package:landingpage/src/utils/colors.dart';
 // import '../../../appbar/widgets/music_wave.dart';
 // import '../../../ui/dashboard/dashboard.dart';
 
+// ---------------------------------------------------------------------------
+// PASSWORD STRENGTH HELPERS
+// A "strong" password here means: 8+ characters, at least one uppercase
+// letter, one lowercase letter, one number, and one special character.
+// ---------------------------------------------------------------------------
+
+final RegExp _specialCharacterPattern = RegExp(
+  r'[!@#$%^&*()_+\-={}\[\]|:;<>,.?~]',
+);
+
+/// Returns the list of unmet requirements, in human-readable form.
+/// An empty list means the password satisfies every requirement.
+List<String> passwordRequirementsUnmet(String password) {
+  final List<String> missing = [];
+
+  if (password.length < 8) missing.add("at least 8 characters");
+  if (!RegExp(r'[A-Z]').hasMatch(password)) {
+    missing.add("an uppercase letter");
+  }
+  if (!RegExp(r'[a-z]').hasMatch(password)) {
+    missing.add("a lowercase letter");
+  }
+  if (!RegExp(r'[0-9]').hasMatch(password)) {
+    missing.add("a number");
+  }
+  if (!_specialCharacterPattern.hasMatch(password)) {
+    missing.add("a special character (e.g. ! @ # \$ %)");
+  }
+
+  return missing;
+}
+
+enum PasswordStrength { weak, fair, good, strong }
+
+PasswordStrength passwordStrengthOf(String password) {
+  final metCount = 5 - passwordRequirementsUnmet(password).length;
+  if (metCount <= 2) return PasswordStrength.weak;
+  if (metCount == 3) return PasswordStrength.fair;
+  if (metCount == 4) return PasswordStrength.good;
+  return PasswordStrength.strong;
+}
+
+/// Returns null if [password] meets every strength requirement, otherwise
+/// a single user-facing message listing what's still missing.
+String? validatePasswordStrength(String password) {
+  final missing = passwordRequirementsUnmet(password);
+  if (missing.isEmpty) return null;
+  if (missing.length == 1) return "Password needs ${missing.first}.";
+  final last = missing.removeLast();
+  return "Password needs ${missing.join(", ")} and $last.";
+}
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -125,8 +177,11 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    if (passwordController.text.trim().length < 6) {
-      showMessage("Password must contain minimum 6 characters.");
+    final passwordError = validatePasswordStrength(
+      passwordController.text.trim(),
+    );
+    if (passwordError != null) {
+      showMessage(passwordError);
       return;
     }
 
@@ -980,6 +1035,20 @@ class _RegisterPopupState extends State<_RegisterPopup> {
   bool obscurePassword = true;
 
   @override
+  void initState() {
+    super.initState();
+    widget.passwordController.addListener(_onPasswordChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.passwordController.removeListener(_onPasswordChanged);
+    super.dispose();
+  }
+
+  void _onPasswordChanged() => setState(() {});
+
+  @override
   Widget build(BuildContext context) {
     final bool isDarkMode = widget.isDarkMode;
     final Color textColor = AppColors.textPrimary(isDarkMode);
@@ -1147,7 +1216,12 @@ class _RegisterPopupState extends State<_RegisterPopup> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 10),
+                      _PasswordStrengthMeter(
+                        password: widget.passwordController.text,
+                        isDarkMode: isDarkMode,
+                      ),
+                      const SizedBox(height: 22),
                       SizedBox(
                         width: double.infinity,
                         height: 55,
@@ -1189,6 +1263,90 @@ class _RegisterPopupState extends State<_RegisterPopup> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// PASSWORD STRENGTH METER — 5 segments (one per requirement) plus a
+// short label telling the user what's still missing.
+
+class _PasswordStrengthMeter extends StatelessWidget {
+  final String password;
+  final bool isDarkMode;
+
+  const _PasswordStrengthMeter({
+    required this.password,
+    required this.isDarkMode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final missing = passwordRequirementsUnmet(password);
+    final metCount = 5 - missing.length;
+    final strength = passwordStrengthOf(password);
+
+    late final Color barColor;
+    late final String label;
+    switch (strength) {
+      case PasswordStrength.weak:
+        barColor = const Color(0xFFE05656);
+        label = "Weak";
+        break;
+      case PasswordStrength.fair:
+        barColor = const Color(0xFFE0A756);
+        label = "Fair";
+        break;
+      case PasswordStrength.good:
+        barColor = const Color(0xFFD9C94E);
+        label = "Good";
+        break;
+      case PasswordStrength.strong:
+        barColor = const Color(0xFF56C97D);
+        label = "Strong";
+        break;
+    }
+
+    final Color trackColor = isDarkMode
+        ? Colors.white.withOpacity(0.12)
+        : Colors.black.withOpacity(0.08);
+    final Color subTextColor = AppColors.textSecondary(isDarkMode);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: List.generate(5, (index) {
+            final bool filled = index < metCount;
+            return Expanded(
+              child: Container(
+                margin: EdgeInsets.only(right: index == 4 ? 0 : 6),
+                height: 4,
+                decoration: BoxDecoration(
+                  color: filled ? barColor : trackColor,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 6),
+        if (password.isEmpty)
+          Text(
+            "Use 8+ characters with upper & lower case, a number and a symbol.",
+            style: GoogleFonts.spaceGrotesk(color: subTextColor, fontSize: 12),
+          )
+        else
+          Text(
+            missing.isEmpty
+                ? "Strong password"
+                : "$label · needs ${missing.join(", ")}",
+            style: GoogleFonts.spaceGrotesk(
+              color: missing.isEmpty ? barColor : subTextColor,
+              fontSize: 12,
+              fontWeight: missing.isEmpty ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+      ],
     );
   }
 }

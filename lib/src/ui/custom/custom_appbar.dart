@@ -22,6 +22,12 @@ class CustomAppBar extends StatelessWidget {
   final VoidCallback onToggleTheme;
   final Widget? leading;
 
+  // ===== CHANGED: Custom color used ONLY for the theme-toggle icon,
+  // user icon, and Login button text/icon color — does NOT touch
+  // AppColors.deepPurple used elsewhere in the app.
+  // Just edit this hex value to change all three at once.
+  static const Color _iconPurple = Color(0xFF6A1B9A);
+
   const CustomAppBar({
     super.key,
     required this.isDarkMode,
@@ -226,38 +232,82 @@ class CustomAppBar extends StatelessWidget {
                         onMenuTap: (anchor) =>
                             _handleUserMenu(context, isDarkMode, anchor),
                       )
+                    // ===== CHANGED: Login button — was a solid
+                    // ElevatedButton (AppColors.primaryPurple bg, white
+                    // text). Now wrapped in ClipRRect+BackdropFilter for
+                    // the glass look, and shaped to MATCH the theme
+                    // toggle button exactly: height 35, borderRadius 20.
+                    // - Blur amount: sigmaX/sigmaY (12,12) below.
+                    // - Background opacity: the 0.14 values below.
+                    // - Border opacity: the 0.20 / 0.25 values below.
+                    // - Text color: lavenderAccent (dark) / deepPurple (light).
                     else if (showLoginButton)
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const LoginPage(),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(20),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const LoginPage(),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                height: 35,
+                                alignment: Alignment.center,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 22,
+                                ),
+                                decoration: BoxDecoration(
+                                  // Background tint: purple opacity in
+                                  // both modes now — bump up for a more
+                                  // opaque/solid glass look.
+                                  color: isDarkMode
+                                      ? AppColors.lavenderAccent.withOpacity(
+                                          0.25,
+                                        )
+                                      : AppColors.lavenderAccent.withOpacity(
+                                          0.30,
+                                        ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: isDarkMode
+                                        ? AppColors.lavenderAccent.withOpacity(
+                                            0.40,
+                                          )
+                                        : AppColors.lavenderAccent.withOpacity(
+                                            0.40,
+                                          ),
+                                    width: 1.2,
+                                  ),
+                                ),
+                                child: Text(
+                                  "Login",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDarkMode
+                                        ? _iconPurple
+                                        : const Color.fromARGB(
+                                            255,
+                                            250,
+                                            250,
+                                            251,
+                                          ),
+                                  ),
+                                ),
+                              ),
                             ),
-                          );
-                        },
-
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryPurple,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                        ),
-                        child: const Text(
-                          "Login",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
                           ),
                         ),
                       ),
+                    // ===== END CHANGED: Login button =====
                   ],
                 ),
               ),
@@ -368,32 +418,57 @@ class CustomAppBar extends StatelessWidget {
     }
   }
 
+  // ===== CHANGED: Theme toggle button — was a solid Container
+  // (AppColors.deepPurple bg in dark mode / Colors.white in light mode).
+  // Now wrapped in ClipRRect+BackdropFilter for the glass look.
+  // - Blur amount: sigmaX/sigmaY (12,12) below.
+  // - Background opacity: the 0.14 values below (raise for more opaque).
+  // - Border opacity: the 0.20 / 0.25 values below.
+  // - Icon color: lavenderAccent (dark mode) / deepPurple (light mode).
   Widget _themeToggleButton() {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onToggleTheme,
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            width: 60,
-            height: 35,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: isDarkMode ? AppColors.deepPurple : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Icon(
-              isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-              color: isDarkMode ? Colors.white : AppColors.deepPurple,
-              size: 20,
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onToggleTheme,
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              width: 60,
+              height: 35,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isDarkMode
+                    ? AppColors.lavenderAccent.withOpacity(
+                        0.25,
+                      ) // dark mode bg tint (was white opacity)
+                    : AppColors.lavenderAccent.withOpacity(
+                        0.30,
+                      ), // light mode bg tint
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isDarkMode
+                      ? AppColors.lavenderAccent.withOpacity(0.40)
+                      : AppColors.lavenderAccent.withOpacity(0.40),
+                  width: 1.2,
+                ),
+              ),
+              child: Icon(
+                isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                color: isDarkMode
+                    ? _iconPurple
+                    : const Color.fromARGB(255, 220, 198, 234),
+                size: 20,
+              ),
             ),
           ),
         ),
       ),
     );
   }
+  // ===== END CHANGED: Theme toggle button =====
 
   Widget _menuItem(
     BuildContext context,
@@ -471,6 +546,15 @@ class _UserMenuButtonState extends State<_UserMenuButton> {
     return box.localToGlobal(Offset(box.size.width, box.size.height));
   }
 
+  // ===== CHANGED: User icon button — was a solid circle Container
+  // (AppColors.deepPurple bg in dark mode / Colors.white in light mode).
+  // Now wrapped in ClipRRect+BackdropFilter for the glass look, and
+  // shaped to MATCH the theme toggle button exactly: width 60,
+  // height 35, borderRadius 20 (pill, not a circle anymore).
+  // - Blur amount: sigmaX/sigmaY (12,12) below.
+  // - Background opacity: 0.14 (dark) / 0.30 (light) — raise for more opaque.
+  // - Border opacity: 0.20 (dark) / 0.40 (light).
+  // - Icon color: lavenderAccent (dark mode) / deepPurple (light mode).
   @override
   Widget build(BuildContext context) {
     return Tooltip(
@@ -478,22 +562,46 @@ class _UserMenuButtonState extends State<_UserMenuButton> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => widget.onMenuTap(_iconBottomRightGlobal()),
-        child: Container(
-          key: _iconKey,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: widget.isDarkMode ? AppColors.deepPurple : Colors.white,
-          ),
-          child: Icon(
-            Icons.person_rounded,
-            color: widget.isDarkMode ? Colors.white : AppColors.deepPurple,
-            size: 20,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              key: _iconKey,
+              width: 60,
+              height: 35,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: widget.isDarkMode
+                    ? AppColors.lavenderAccent.withOpacity(
+                        0.25,
+                      ) // dark mode bg tint (was white opacity)
+                    : AppColors.lavenderAccent.withOpacity(
+                        0.30,
+                      ), // light mode bg tint
+                border: Border.all(
+                  color: widget.isDarkMode
+                      ? AppColors.lavenderAccent.withOpacity(0.40)
+                      : AppColors.lavenderAccent.withOpacity(0.40),
+                  width: 1.2,
+                ),
+              ),
+              child: Icon(
+                Icons.person_rounded,
+                color: widget.isDarkMode
+                    ? CustomAppBar._iconPurple
+                    : const Color.fromARGB(255, 223, 212, 229),
+                size: 20,
+              ),
+            ),
           ),
         ),
       ),
     );
   }
+
+  // ===== END CHANGED: User icon button =====
 }
 
 class _UserMenuPopup extends StatelessWidget {
@@ -524,6 +632,15 @@ class _UserMenuPopup extends StatelessWidget {
     const double gap = 10;
     final double screenWidth = MediaQuery.of(context).size.width;
 
+    // ===== CHANGED: Settings/Logout popup — the floating circular
+    // person-icon "badge" that used to sit in the top-right corner
+    // (Positioned(right: 12, top: 0, child: Container(...person icon)))
+    // has been removed entirely. Because of that, the extra top
+    // margin/padding that made room for it
+    // (margin: EdgeInsets.only(top: 26), padding top: 30) was also
+    // tightened to fromLTRB(10, 10, 10, 10) so there's no empty gap.
+    // If you want the badge back, re-add a second Positioned widget
+    // inside the Stack below, sized ~52x52, top-right aligned.
     return Material(
       type: MaterialType.transparency,
       child: Stack(
@@ -534,121 +651,85 @@ class _UserMenuPopup extends StatelessWidget {
             top: anchor.dy + gap,
             child: SizedBox(
               width: popupWidth,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                      child: Container(
-                        margin: const EdgeInsets.only(top: 26),
-                        padding: const EdgeInsets.fromLTRB(10, 30, 10, 10),
-                        decoration: BoxDecoration(
-                          color: cardColor,
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: borderColor, width: 1.4),
-                          boxShadow: [
-                            BoxShadow(
-                              color: accent.withOpacity(0.35),
-                              blurRadius: 30,
-                              spreadRadius: 2,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: borderColor, width: 1.4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.withOpacity(0.35),
+                          blurRadius: 30,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 12),
                         ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _menuRow(
-                              context,
-                              icon: Icons.settings_outlined,
-                              label: "Settings",
-                              color: textColor,
-                              onTap: () =>
-                                  Navigator.of(context).pop('settings'),
-                            ),
-                            const SizedBox(height: 8),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _menuRow(
+                          context,
+                          icon: Icons.settings_outlined,
+                          label: "Settings",
+                          color: textColor,
+                          onTap: () => Navigator.of(context).pop('settings'),
+                        ),
+                        const SizedBox(height: 8),
 
-                            Material(
-                              color: Colors.transparent,
-                              child: InkWell(
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () => Navigator.of(context).pop('logout'),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 13,
+                              ),
+                              decoration: BoxDecoration(
+                                color: logoutColor.withOpacity(0.16),
                                 borderRadius: BorderRadius.circular(14),
-                                onTap: () =>
-                                    Navigator.of(context).pop('logout'),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 13,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: logoutColor.withOpacity(0.16),
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                      color: logoutColor.withOpacity(0.45),
-                                      width: 1.2,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.logout_rounded,
-                                        size: 19,
-                                        color: logoutColor,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        "Logout",
-                                        style: GoogleFonts.spaceGrotesk(
-                                          color: logoutColor,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          decoration: TextDecoration.none,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                border: Border.all(
+                                  color: logoutColor.withOpacity(0.45),
+                                  width: 1.2,
                                 ),
                               ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.logout_rounded,
+                                    size: 19,
+                                    color: logoutColor,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    "Logout",
+                                    style: GoogleFonts.spaceGrotesk(
+                                      color: logoutColor,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      decoration: TextDecoration.none,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  Positioned(
-                    right: 12,
-                    top: 0,
-                    child: Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: cardColor,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: borderColor, width: 1.4),
-                        boxShadow: [
-                          BoxShadow(
-                            color: accent.withOpacity(0.35),
-                            blurRadius: 30,
-                            spreadRadius: 2,
-                            offset: const Offset(0, 12),
                           ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.person_rounded,
-                        color: isDarkMode
-                            ? const Color.fromARGB(255, 255, 255, 255)
-                            : const Color.fromARGB(255, 0, 0, 0),
-                        size: 24,
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
+          // ===== END CHANGED: badge Positioned() removed from here =====
         ],
       ),
     );
@@ -716,6 +797,14 @@ class _LogoutPopup extends StatelessWidget {
     const double gap = 10;
     final double screenWidth = MediaQuery.of(context).size.width;
 
+    // ===== CHANGED: Logout confirmation popup — the floating circular
+    // logout-icon "badge" that used to sit in the top-right corner
+    // (Positioned(right: 12, top: 0, child: Container(...logout icon)))
+    // has been removed entirely. The extra top margin/padding reserved
+    // for it (margin top: 26, padding top: 34) was tightened to
+    // fromLTRB(18, 20, 18, 20). If you want the badge back, re-add a
+    // second Positioned widget inside the Stack below, sized ~52x52,
+    // top-right aligned.
     return Material(
       type: MaterialType.transparency,
       child: Stack(
@@ -726,160 +815,126 @@ class _LogoutPopup extends StatelessWidget {
             top: anchor.dy + gap,
             child: SizedBox(
               width: popupWidth,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                      child: Container(
-                        margin: const EdgeInsets.only(top: 26),
-                        padding: const EdgeInsets.fromLTRB(18, 34, 18, 20),
-                        decoration: BoxDecoration(
-                          color: cardColor,
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: borderColor, width: 1.4),
-                          boxShadow: [
-                            BoxShadow(
-                              color: accent.withOpacity(0.35),
-                              blurRadius: 30,
-                              spreadRadius: 2,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: borderColor, width: 1.4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.withOpacity(0.35),
+                          blurRadius: 30,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 12),
                         ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              "Log Out",
-                              style: GoogleFonts.spaceGrotesk(
-                                color: accent,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 2.5,
-                                decoration: TextDecoration.none,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              "Are you sure you want to log out of Lizzen?",
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.spaceGrotesk(
-                                color: textColor,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                height: 1.35,
-                                decoration: TextDecoration.none,
-                              ),
-                            ),
-                            const SizedBox(height: 22),
-
-                            Row(
-                              children: [
-                                // CANCEL — outline
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () =>
-                                        Navigator.of(context).pop(false),
-                                    style: OutlinedButton.styleFrom(
-                                      side: BorderSide(
-                                        color: isDarkMode
-                                            ? Colors.white.withOpacity(0.25)
-                                            : Colors.black.withOpacity(0.15),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 10,
-                                        horizontal: 4,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      "Cancel",
-                                      style: GoogleFonts.spaceGrotesk(
-                                        color: subTextColor,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 12,
-                                        decoration: TextDecoration.none,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: () =>
-                                        Navigator.of(context).pop(true),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: isDarkMode
-                                          ? Colors.white
-                                          : const Color(0xFF6A1B9A),
-                                      foregroundColor: isDarkMode
-                                          ? Colors.black
-                                          : Colors.white,
-                                      elevation: 0,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 10,
-                                        horizontal: 4,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      "Logout",
-                                      style: GoogleFonts.spaceGrotesk(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12,
-                                        decoration: TextDecoration.none,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
+                      ],
                     ),
-                  ),
-
-                  Positioned(
-                    right: 12,
-                    top: 0,
-                    child: Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: cardColor,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: borderColor, width: 1.4),
-                        boxShadow: [
-                          BoxShadow(
-                            color: accent.withOpacity(0.35),
-                            blurRadius: 30,
-                            spreadRadius: 2,
-                            offset: const Offset(0, 12),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "Log Out",
+                          style: GoogleFonts.spaceGrotesk(
+                            color: accent,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 2.5,
+                            decoration: TextDecoration.none,
                           ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.logout_rounded,
-                        color: isDarkMode
-                            ? const Color.fromARGB(255, 253, 253, 253)
-                            : const Color.fromARGB(255, 43, 35, 35),
-                        size: 24,
-                      ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          "Are you sure you want to log out of Lizzen?",
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.spaceGrotesk(
+                            color: textColor,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            height: 1.35,
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+
+                        Row(
+                          children: [
+                            // CANCEL — outline
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () =>
+                                    Navigator.of(context).pop(false),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(
+                                    color: isDarkMode
+                                        ? Colors.white.withOpacity(0.25)
+                                        : Colors.black.withOpacity(0.15),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                    horizontal: 4,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: Text(
+                                  "Cancel",
+                                  style: GoogleFonts.spaceGrotesk(
+                                    color: subTextColor,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                    decoration: TextDecoration.none,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () =>
+                                    Navigator.of(context).pop(true),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isDarkMode
+                                      ? Colors.white
+                                      : const Color(0xFF6A1B9A),
+                                  foregroundColor: isDarkMode
+                                      ? Colors.black
+                                      : Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                    horizontal: 4,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: Text(
+                                  "Logout",
+                                  style: GoogleFonts.spaceGrotesk(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                    decoration: TextDecoration.none,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
+          // ===== END CHANGED: badge Positioned() removed from here =====
         ],
       ),
     );

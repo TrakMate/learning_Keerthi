@@ -15,6 +15,30 @@ import 'package:landingpage/src/utils/colors.dart';
 
 enum _SettingsTab { profile, account, appearance, playback }
 
+/// Firebase only sets `displayName` for accounts created via Google (or
+/// another provider that supplies one) — email/password sign-ups leave it
+/// null, which used to show up as an empty/"null" name field. This falls
+/// back to the part of the email before "@", formatted as a name
+/// (e.g. "priya.raj" -> "Priya Raj").
+String _resolveDisplayName(User? user) {
+  final String? displayName = user?.displayName;
+  if (displayName != null && displayName.trim().isNotEmpty) {
+    return displayName;
+  }
+
+  final String? email = user?.email;
+  if (email == null || email.isEmpty) return "";
+
+  final String localPart = email.split('@').first;
+  if (localPart.isEmpty) return "";
+
+  return localPart
+      .split(RegExp(r'[._]+'))
+      .where((part) => part.isNotEmpty)
+      .map((part) => part[0].toUpperCase() + part.substring(1))
+      .join(' ');
+}
+
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key, required bool isDarkMode});
 
@@ -37,7 +61,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     final User? user = FirebaseAuth.instance.currentUser;
-    _nameController = TextEditingController(text: user?.displayName ?? "");
+    _nameController = TextEditingController(text: _resolveDisplayName(user));
     _emailController = TextEditingController(text: user?.email ?? "");
     AppTheme.instance.load();
   }

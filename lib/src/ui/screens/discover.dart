@@ -371,24 +371,12 @@ class _SongBarState extends State<_SongBar> {
     final nowSaved = _lib.savedIds.contains(widget.song.id);
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: widget.isDarkMode
-            ? const Color(0xff220833)
-            : Colors.white,
-        content: Text(
-          nowSaved
-              ? 'Saved "${widget.song.title}"'
-              : 'Removed "${widget.song.title}" from Saved',
-          style: GoogleFonts.spaceGrotesk(
-            color: AppColors.textPrimary(widget.isDarkMode),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        duration: const Duration(milliseconds: 1200),
-      ),
+    AppToast.show(
+      context,
+      isDarkMode: widget.isDarkMode,
+      message: nowSaved
+          ? 'Saved "${widget.song.title}"'
+          : 'Removed "${widget.song.title}" from Saved',
     );
   }
 
@@ -618,22 +606,12 @@ class _AddToPlaylistSheet extends StatelessWidget {
 
     if (!context.mounted) return;
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: isDarkMode ? const Color(0xff220833) : Colors.white,
-        content: Text(
-          added
-              ? 'Added "${song.title}" to ${playlist.title}'
-              : '"${song.title}" is already in ${playlist.title}',
-          style: GoogleFonts.spaceGrotesk(
-            color: AppColors.textPrimary(isDarkMode),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        duration: const Duration(milliseconds: 1400),
-      ),
+    AppToast.show(
+      context,
+      isDarkMode: isDarkMode,
+      message: added
+          ? 'Added "${song.title}" to ${playlist.title}'
+          : '"${song.title}" is already in ${playlist.title}',
     );
   }
 
@@ -756,6 +734,164 @@ class _AddToPlaylistSheet extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Lightweight, dependency-free toast notification.
+///
+/// Replaces the previous ScaffoldMessenger SnackBars: instead of a bar
+/// docked to the bottom of the Scaffold, [AppToast.show] inserts a
+/// self-dismissing, centered pill into the root [Overlay] -- true "toast"
+/// behavior that floats above everything (including bottom sheets) and
+/// doesn't require a Scaffold in scope.
+class AppToast {
+  static OverlayEntry? _entry;
+
+  static void show(
+    BuildContext context, {
+    required String message,
+    required bool isDarkMode,
+    Duration duration = const Duration(milliseconds: 1400),
+  }) {
+    final overlay = Overlay.of(context, rootOverlay: true);
+
+    // Replace any toast that's still showing rather than stacking them.
+    _entry?.remove();
+
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => _ToastWidget(
+        message: message,
+        isDarkMode: isDarkMode,
+        visibleDuration: duration,
+        onDismissed: () {
+          if (_entry == entry) _entry = null;
+          entry.remove();
+        },
+      ),
+    );
+
+    _entry = entry;
+    overlay.insert(entry);
+  }
+}
+
+class _ToastWidget extends StatefulWidget {
+  final String message;
+  final bool isDarkMode;
+  final Duration visibleDuration;
+  final VoidCallback onDismissed;
+
+  const _ToastWidget({
+    required this.message,
+    required this.isDarkMode,
+    required this.visibleDuration,
+    required this.onDismissed,
+  });
+
+  @override
+  State<_ToastWidget> createState() => _ToastWidgetState();
+}
+
+class _ToastWidgetState extends State<_ToastWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+      reverseDuration: const Duration(milliseconds: 160),
+    );
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.35),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+
+    _controller.forward();
+
+    Future.delayed(widget.visibleDuration, () async {
+      if (!mounted) return;
+      await _controller.reverse();
+      widget.onDismissed();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDarkMode = widget.isDarkMode;
+
+    return Positioned(
+      left: 24,
+      right: 24,
+      bottom: 48,
+      child: IgnorePointer(
+        child: Center(
+          child: FadeTransition(
+            opacity: _fade,
+            child: SlideTransition(
+              position: _slide,
+              child: Material(
+                color: Colors.transparent,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isDarkMode
+                            ? const Color(0xff220833).withValues(alpha: 0.92)
+                            : Colors.white.withValues(alpha: 0.95),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color: AppColors.glassBorder(isDarkMode),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: isDarkMode ? 0.4 : 0.14,
+                            ),
+                            blurRadius: 24,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        widget.message,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.spaceGrotesk(
+                          color: AppColors.textPrimary(isDarkMode),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
