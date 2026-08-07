@@ -621,7 +621,7 @@ class PlaylistCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           image: DecorationImage(
-            image: AssetImage(backgroundImage ?? 'assets/images/connn.png'),
+            image: AssetImage(backgroundImage ?? 'images/connn.png'),
             fit: BoxFit.cover,
             // Darkens the photo a bit so the white title text stays
             // readable no matter what the image looks like.
@@ -747,10 +747,7 @@ class _PlaylistSheetState extends State<PlaylistSheet> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: Image.asset(
-                      // Swap this path for your real file once it's in the project,
-                      // e.g. 'assets/covers/chill_mix.jpg'. Also make sure it's declared
-                      // under `assets:` in pubspec.yaml, or Flutter won't find it.
-                      'assets/covers/connn.png',
+                      'images/connn.png',
                       width: 64,
                       height: 64,
                       fit: BoxFit.cover,

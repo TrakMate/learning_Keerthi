@@ -81,7 +81,7 @@ class CustomAppBar extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Image.asset(
-                          'assets/images/glogo.png',
+                          'images/glogo.png',
                           width: 45,
                           height: 45,
                           fit: BoxFit.contain,

@@ -401,9 +401,7 @@ class _LoginPageState extends State<LoginPage> {
         children: [
           Positioned.fill(
             child: Image.asset(
-              isDarkMode
-                  ? 'assets/images/login_bg.jpg'
-                  : 'assets/images/login1_bg.png',
+              isDarkMode ? 'images/login_bg.jpg' : 'images/login1_bg.png',
               fit: BoxFit.cover,
             ),
           ),
@@ -422,7 +420,7 @@ class _LoginPageState extends State<LoginPage> {
                 flex: 4,
                 child: Center(
                   child: Image.asset(
-                    "assets/images/headphone.png",
+                    "images/headphone.png",
                     width: size.width * 0.58,
                     fit: BoxFit.contain,
                   ),

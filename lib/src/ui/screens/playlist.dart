@@ -164,10 +164,10 @@ class _PlaylistCardWithLyrics extends StatelessWidget {
   });
 
   static const List<String> _cardBackgrounds = [
-    'assets/images/con2.png',
-    'assets/images/con3.png',
-    'assets/images/con4.png',
-    'assets/images/con5.png',
+    'images/con2.png',
+    'images/con3.png',
+    'images/con4.png',
+    'images/con5.png',
   ];
 
   @override
